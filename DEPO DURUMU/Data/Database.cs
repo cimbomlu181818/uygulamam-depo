@@ -72,6 +72,20 @@ CREATE TABLE IF NOT EXISTS TypeProperties (
     SortOrder      INTEGER NOT NULL DEFAULT 0,
     UNIQUE (ProductTypeId, PropertyId)
 );
+
+CREATE TABLE IF NOT EXISTS Products (
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductTypeId  INTEGER NOT NULL REFERENCES ProductTypes(Id),
+    CreatedAt      TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ProductValues (
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductId      INTEGER NOT NULL REFERENCES Products(Id),
+    PropertyId     INTEGER NOT NULL REFERENCES PropertyDefinitions(Id),
+    TextValue      TEXT,
+    UNIQUE (ProductId, PropertyId)
+);
 ";
     }
 }

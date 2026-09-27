@@ -76,8 +76,11 @@ namespace DEPO_DURUMU.Data
         }
 
         /// <summary>
-        /// Bir özelliği kütüphaneden siler. Hâlâ bir ürün cinsinde
-        /// kullanılıyorsa silmeyi engeller (false döner).
+        /// Bir özelliği kütüphaneden siler.
+        /// Kural: bu özellik için en az bir üründe DOLU (boş olmayan) bir değer varsa
+        /// silmeyi engeller (false döner) — önce o verilerin temizlenmesi/ürünlerin
+        /// silinmesi gerekir. Dolu veri yoksa, özellik hangi ürün cinslerine bağlı
+        /// olursa olsun (bağlantılar dahil) tamamen silinir.
         /// </summary>
         public static bool Delete(int id)
         {
@@ -86,7 +89,8 @@ namespace DEPO_DURUMU.Data
                 using (var checkCommand = connection.CreateCommand())
                 {
                     checkCommand.CommandText =
-                        "SELECT COUNT(*) FROM TypeProperties WHERE PropertyId = @id;";
+                        "SELECT COUNT(*) FROM ProductValues " +
+                        "WHERE PropertyId = @id AND TextValue IS NOT NULL AND TextValue != '';";
                     checkCommand.Parameters.Add(new SQLiteParameter("@id", id));
 
                     var usageCount = System.Convert.ToInt32(checkCommand.ExecuteScalar());
@@ -98,7 +102,12 @@ namespace DEPO_DURUMU.Data
 
                 using (var deleteCommand = connection.CreateCommand())
                 {
-                    deleteCommand.CommandText = "DELETE FROM PropertyDefinitions WHERE Id = @id;";
+                    // Dolu veri yok; boş kalan değer kayıtlarını, cins bağlantılarını
+                    // ve özelliğin kendisini temizle.
+                    deleteCommand.CommandText =
+                        "DELETE FROM ProductValues WHERE PropertyId = @id; " +
+                        "DELETE FROM TypeProperties WHERE PropertyId = @id; " +
+                        "DELETE FROM PropertyDefinitions WHERE Id = @id;";
                     deleteCommand.Parameters.Add(new SQLiteParameter("@id", id));
                     deleteCommand.ExecuteNonQuery();
                 }

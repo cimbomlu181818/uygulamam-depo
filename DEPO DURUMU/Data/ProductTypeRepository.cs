@@ -64,15 +64,40 @@ namespace DEPO_DURUMU.Data
             }
         }
 
-        public static void Delete(int id)
+        /// <summary>
+        /// Bir ürün cinsini siler.
+        /// Kural: bu cinse ait en az bir ürün varsa silmeyi engeller (false döner) —
+        /// önce o ürünlerin silinmesi gerekir. Ürün kalmadıysa, cinsin özellik
+        /// bağlantıları da temizlenerek cins tamamen silinir.
+        /// </summary>
+        public static bool Delete(int id)
         {
             using (var connection = Database.OpenConnection())
-            using (var command = connection.CreateCommand())
             {
-                command.CommandText = "DELETE FROM TypeProperties WHERE ProductTypeId = @id; DELETE FROM ProductTypes WHERE Id = @id;";
-                command.Parameters.Add(new SQLiteParameter("@id", id));
-                command.ExecuteNonQuery();
+                using (var checkCommand = connection.CreateCommand())
+                {
+                    checkCommand.CommandText =
+                        "SELECT COUNT(*) FROM Products WHERE ProductTypeId = @id;";
+                    checkCommand.Parameters.Add(new SQLiteParameter("@id", id));
+
+                    var productCount = System.Convert.ToInt32(checkCommand.ExecuteScalar());
+                    if (productCount > 0)
+                    {
+                        return false;
+                    }
+                }
+
+                using (var deleteCommand = connection.CreateCommand())
+                {
+                    deleteCommand.CommandText =
+                        "DELETE FROM TypeProperties WHERE ProductTypeId = @id; " +
+                        "DELETE FROM ProductTypes WHERE Id = @id;";
+                    deleteCommand.Parameters.Add(new SQLiteParameter("@id", id));
+                    deleteCommand.ExecuteNonQuery();
+                }
             }
+
+            return true;
         }
     }
 }

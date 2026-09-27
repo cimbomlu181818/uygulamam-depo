@@ -73,7 +73,16 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            ProductTypeRepository.Delete(selected.Id);
+            var deleted = ProductTypeRepository.Delete(selected.Id);
+            if (!deleted)
+            {
+                MessageBox.Show(
+                    "\"" + selected.Name + "\" cinsine ait ürünler olduğu için silinemiyor.\n\n" +
+                    "Önce o cinse ait tüm ürünleri silin, sonra tekrar deneyin.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             LoadTypes();
         }
 
@@ -159,7 +168,9 @@ namespace DEPO_DURUMU
             var deleted = PropertyDefinitionRepository.Delete(selected.Id);
             if (!deleted)
             {
-                MessageBox.Show("Bu özellik en az bir ürün cinsinde kullanıldığı için silinemiyor.",
+                MessageBox.Show(
+                    "\"" + selected.Name + "\" özelliği en az bir üründe dolu bir değere sahip olduğu için silinemiyor.\n\n" +
+                    "Önce o ürünlerin bu alanını boşaltın (ürünü düzenleyip değeri silin) ya da ilgili ürünleri silin, sonra tekrar deneyin.",
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
