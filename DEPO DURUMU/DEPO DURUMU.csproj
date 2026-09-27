@@ -63,13 +63,20 @@
     <Compile Include="AddProductWindow.xaml.cs">
       <DependentUpon>AddProductWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="AddStatisticWindow.xaml.cs">
+      <DependentUpon>AddStatisticWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="AssignPropertiesWindow.xaml.cs">
       <DependentUpon>AssignPropertiesWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Data\HomeStatisticsRepository.cs" />
     <Compile Include="Data\ProductRepository.cs" />
     <Compile Include="Data\ProductSearchRepository.cs" />
     <Compile Include="ProductDetailWindow.xaml.cs">
       <DependentUpon>ProductDetailWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="ReorderStatisticsWindow.xaml.cs">
+      <DependentUpon>ReorderStatisticsWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="SettingsWindow.xaml.cs">
       <DependentUpon>SettingsWindow.xaml</DependentUpon>
@@ -78,6 +85,10 @@
       <DependentUpon>SimpleInputWindow.xaml</DependentUpon>
     </Compile>
     <Page Include="AddProductWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="AddStatisticWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -102,6 +113,10 @@
       <SubType>Code</SubType>
     </Compile>
     <Page Include="ProductDetailWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ReorderStatisticsWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

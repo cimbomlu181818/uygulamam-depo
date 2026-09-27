@@ -86,6 +86,13 @@ CREATE TABLE IF NOT EXISTS ProductValues (
     TextValue      TEXT,
     UNIQUE (ProductId, PropertyId)
 );
+
+CREATE TABLE IF NOT EXISTS HomeStatistics (
+    Id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductTypeId  INTEGER NOT NULL REFERENCES ProductTypes(Id),
+    PropertyId     INTEGER NOT NULL REFERENCES PropertyDefinitions(Id),
+    SortOrder      INTEGER NOT NULL DEFAULT 0
+);
 ";
     }
 }

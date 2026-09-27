@@ -1,0 +1,27 @@
+﻿<Window x:Class="DEPO_DURUMU.ReorderStatisticsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="İstatistik Kutularını Sırala"
+        Height="320" Width="380"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+
+    <DockPanel Margin="15">
+
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,10,0,0">
+            <Button Content="İptal" Width="70" Height="28" Margin="0,0,6,0" IsCancel="True" />
+            <Button Content="Tamam" Width="70" Height="28" Click="OkButton_Click" IsDefault="True" />
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Right" Margin="10,0,0,0" VerticalAlignment="Center">
+            <Button Content="Yukarı" Width="70" Height="28" Margin="0,0,0,6" Click="MoveUpButton_Click" />
+            <Button Content="Aşağı" Width="70" Height="28" Click="MoveDownButton_Click" />
+        </StackPanel>
+
+        <ListBox x:Name="CardsList" DisplayMemberPath="DisplayText" />
+
+    </DockPanel>
+</Window>

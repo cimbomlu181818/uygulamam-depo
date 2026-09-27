@@ -28,6 +28,10 @@ namespace DEPO_DURUMU
         // Seçili filtreler: alan numarası -> seçilen değerler.
         private readonly Dictionary<int, HashSet<string>> _selected = new Dictionary<int, HashSet<string>>();
 
+        // Ana sayfadaki istatistik kutuları ve sürükleme başlangıç noktası.
+        private List<HomeStatisticCard> _homeStatisticCards = new List<HomeStatisticCard>();
+        private Point _dragStartPoint;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -37,6 +41,7 @@ namespace DEPO_DURUMU
         private void ShowHome()
         {
             LoadProductTypes();
+            LoadHomeStatistics();
 
             HomePage.Visibility = Visibility.Visible;
             TypePage.Visibility = Visibility.Collapsed;
@@ -49,6 +54,190 @@ namespace DEPO_DURUMU
             ProductTypeList.DisplayMemberPath = "Name";
             ProductTypeList.ItemsSource = ProductTypeRepository.GetAll();
         }
+
+        // ---------- ANA SAYFA İSTATİSTİKLERİ ----------
+
+        /// <summary>
+        /// Kayıtlı istatistik kutularını okuyup ana sayfada kart olarak gösterir.
+        /// HomeStatisticsRepository.GetAll(), artık geçerli olmayan (özelliği cinsten
+        /// kaldırılmış ya da cinsi silinmiş) kutuları veritabanından da otomatik siler.
+        /// Her kart hem fare ile sürüklenip başka bir kartın üzerine bırakılarak yer
+        /// değiştirebilir, hem de sağ tık menüsünden Taşı/Düzenle/Sil ile yönetilebilir.
+        /// </summary>
+        private void LoadHomeStatistics()
+        {
+            StatisticsPanel.Children.Clear();
+            _homeStatisticCards = HomeStatisticsRepository.GetAll();
+
+            foreach (var card in _homeStatisticCards)
+            {
+                var deleteButton = new Button
+                {
+                    Content = "x",
+                    Width = 20,
+                    Height = 20,
+                    Margin = new Thickness(6, 0, 0, 0),
+                    Tag = card.Id
+                };
+                deleteButton.Click += StatisticDeleteButton_Click;
+
+                var panel = new StackPanel { Orientation = Orientation.Horizontal };
+                panel.Children.Add(new TextBlock
+                {
+                    Text = card.DisplayText,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    FontWeight = FontWeights.SemiBold
+                });
+                panel.Children.Add(deleteButton);
+
+                var border = new Border
+                {
+                    BorderBrush = Brushes.Gray,
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(4),
+                    Padding = new Thickness(10, 6, 10, 6),
+                    Margin = new Thickness(0, 0, 10, 10),
+                    Background = Brushes.White,
+                    Cursor = Cursors.SizeAll,
+                    AllowDrop = true,
+                    Tag = card,
+                    Child = panel,
+                    ContextMenu = BuildStatisticContextMenu(card)
+                };
+
+                border.PreviewMouseLeftButtonDown += StatisticCard_PreviewMouseLeftButtonDown;
+                border.MouseMove += StatisticCard_MouseMove;
+                border.Drop += StatisticCard_Drop;
+
+                StatisticsPanel.Children.Add(border);
+            }
+        }
+
+        /// <summary>Bir kartın sağ tık menüsünü (Taşı / Düzenle / Sil) oluşturur.</summary>
+        private ContextMenu BuildStatisticContextMenu(HomeStatisticCard card)
+        {
+            var menu = new ContextMenu();
+
+            var moveItem = new MenuItem { Header = "Taşı" };
+            moveItem.Click += (s, e) => StatisticMoveMenuItem_Click(card);
+            menu.Items.Add(moveItem);
+
+            var editItem = new MenuItem { Header = "Düzenle" };
+            editItem.Click += (s, e) => StatisticEditMenuItem_Click(card);
+            menu.Items.Add(editItem);
+
+            var deleteItem = new MenuItem { Header = "Sil" };
+            deleteItem.Click += (s, e) => StatisticDeleteMenuItem_Click(card);
+            menu.Items.Add(deleteItem);
+
+            return menu;
+        }
+
+        /// <summary>"Taşı": kutuları liste halinde gösterip Yukarı/Aşağı ile sıralamayı değiştiren pencereyi açar.</summary>
+        private void StatisticMoveMenuItem_Click(HomeStatisticCard card)
+        {
+            var window = new ReorderStatisticsWindow(_homeStatisticCards) { Owner = this };
+            var result = window.ShowDialog();
+
+            if (result == true)
+            {
+                LoadHomeStatistics();
+            }
+        }
+
+        /// <summary>"Düzenle": kutunun cins/özelliğini değiştirmek için AddStatisticWindow'u düzenleme modunda açar.</summary>
+        private void StatisticEditMenuItem_Click(HomeStatisticCard card)
+        {
+            var window = new AddStatisticWindow(card) { Owner = this };
+            var result = window.ShowDialog();
+
+            if (result == true)
+            {
+                LoadHomeStatistics();
+            }
+        }
+
+        /// <summary>"Sil": kutuyu kaldırır. Karttaki "x" düğmesiyle aynı işi yapar.</summary>
+        private void StatisticDeleteMenuItem_Click(HomeStatisticCard card)
+        {
+            HomeStatisticsRepository.Remove(card.Id);
+            LoadHomeStatistics();
+        }
+
+        private void StatisticDeleteButton_Click(object sender, RoutedEventArgs e)
+        {
+            var id = (int)((Button)sender).Tag;
+            HomeStatisticsRepository.Remove(id);
+            LoadHomeStatistics();
+        }
+
+        private void AddStatisticButton_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new AddStatisticWindow { Owner = this };
+            var result = window.ShowDialog();
+
+            if (result == true)
+            {
+                LoadHomeStatistics();
+            }
+        }
+
+        // ---------- İSTATİSTİK KARTLARINI SÜRÜKLEYİP BIRAKMA ----------
+
+        private void StatisticCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(null);
+        }
+
+        private void StatisticCard_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                return;
+            }
+
+            var position = e.GetPosition(null);
+
+            if (Math.Abs(position.X - _dragStartPoint.X) < SystemParameters.MinimumHorizontalDragDistance &&
+                Math.Abs(position.Y - _dragStartPoint.Y) < SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            var border = sender as Border;
+            var card = border == null ? null : border.Tag as HomeStatisticCard;
+            if (card == null)
+            {
+                return;
+            }
+
+            DragDrop.DoDragDrop(border, card, DragDropEffects.Move);
+        }
+
+        /// <summary>
+        /// Bir kart başka bir kartın üzerine bırakılınca, sürüklenen kartı bırakıldığı
+        /// kartın yerine taşır ve yeni sırayı kaydeder.
+        /// </summary>
+        private void StatisticCard_Drop(object sender, DragEventArgs e)
+        {
+            var targetBorder = sender as Border;
+            var targetCard = targetBorder == null ? null : targetBorder.Tag as HomeStatisticCard;
+            var draggedCard = e.Data.GetData(typeof(HomeStatisticCard)) as HomeStatisticCard;
+
+            if (targetCard == null || draggedCard == null || targetCard.Id == draggedCard.Id)
+            {
+                return;
+            }
+
+            var newOrder = _homeStatisticCards.Select(c => c.Id).ToList();
+            newOrder.Remove(draggedCard.Id);
+            newOrder.Insert(newOrder.IndexOf(targetCard.Id), draggedCard.Id);
+
+            HomeStatisticsRepository.Reorder(newOrder);
+            LoadHomeStatistics();
+        }
+
+        // ---------- ÜRÜN CİNSİ SAYFASI ----------
 
         private void ProductTypeList_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
