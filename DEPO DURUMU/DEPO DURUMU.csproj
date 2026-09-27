@@ -67,6 +67,7 @@
       <DependentUpon>AssignPropertiesWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Data\ProductRepository.cs" />
+    <Compile Include="Data\ProductSearchRepository.cs" />
     <Compile Include="ProductDetailWindow.xaml.cs">
       <DependentUpon>ProductDetailWindow.xaml</DependentUpon>
     </Compile>

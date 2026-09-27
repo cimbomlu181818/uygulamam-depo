@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -58,6 +60,7 @@ namespace DEPO_DURUMU
         {
             _currentType = type;
             TypePageTitle.Text = type.Name;
+            TypeSearchBox.Text = "";
 
             HomePage.Visibility = Visibility.Collapsed;
             TypePage.Visibility = Visibility.Visible;
@@ -200,6 +203,33 @@ namespace DEPO_DURUMU
             return false;
         }
 
+        private void SelectAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            var view = ProductGrid.ItemsSource as DataView;
+            if (view == null || view.Count == 0)
+            {
+                return;
+            }
+
+            // Hepsi zaten işaretliyse hepsini kaldır; değilse hepsini işaretle.
+            var allSelected = true;
+            for (var i = 0; i < view.Count; i++)
+            {
+                if (!(bool)view[i][SelectedColumnName])
+                {
+                    allSelected = false;
+                    break;
+                }
+            }
+
+            var newValue = !allSelected;
+
+            for (var i = 0; i < view.Count; i++)
+            {
+                view[i][SelectedColumnName] = newValue;
+            }
+        }
+
         private void DeleteSelectedButton_Click(object sender, RoutedEventArgs e)
         {
             var view = ProductGrid.ItemsSource as DataView;
@@ -243,6 +273,70 @@ namespace DEPO_DURUMU
             LoadProductGrid(_currentType);
         }
 
+        private void TypeSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TypeSearchPlaceholder.Visibility = string.IsNullOrEmpty(TypeSearchBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            ApplyTypeSearch();
+        }
+
+        /// <summary>
+        /// Cins sayfasındaki arama kutusuna yazılan metni, o cinsin TÜM özellik
+        /// sütunlarında arar (2 harften itibaren). Sıra No ve Seçili sütunlarını hariç tutar.
+        /// </summary>
+        private void ApplyTypeSearch()
+        {
+            var view = ProductGrid.ItemsSource as DataView;
+            if (view == null)
+            {
+                return;
+            }
+
+            var text = TypeSearchBox.Text.Trim();
+
+            if (text.Length < 2)
+            {
+                view.RowFilter = "";
+                return;
+            }
+
+            var pattern = EscapeForLike(text);
+
+            var conditions = view.Table.Columns.Cast<DataColumn>()
+                .Where(c => c.ColumnName != NoColumnName && c.ColumnName != SelectedColumnName)
+                .Select(c => "[" + c.ColumnName + "] LIKE '%" + pattern + "%'");
+
+            view.RowFilter = string.Join(" OR ", conditions);
+        }
+
+        /// <summary>
+        /// Aramaya yazılan özel karakterlerin (' * % [ ]) süzme ifadesini bozmasını engeller.
+        /// </summary>
+        private static string EscapeForLike(string text)
+        {
+            var result = new System.Text.StringBuilder();
+
+            foreach (var c in text)
+            {
+                if (c == '\'')
+                {
+                    result.Append("''");
+                }
+                else if (c == '*' || c == '%' || c == '[' || c == ']')
+                {
+                    result.Append('[').Append(c).Append(']');
+                }
+                else
+                {
+                    result.Append(c);
+                }
+            }
+
+            return result.ToString();
+        }
+
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             ShowHome();
@@ -259,6 +353,219 @@ namespace DEPO_DURUMU
             window.ShowDialog();
 
             ShowHome();
+        }
+
+        // ---------- ANA SAYFA ARAMASI ----------
+
+        private void HomeSearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            HomeSearchPlaceholder.Visibility = string.IsNullOrEmpty(HomeSearchBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            RunHomeSearch();
+        }
+
+        private void HomeSearchBox_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                CloseHomeSearch();
+            }
+        }
+
+        private void HomeSearchCloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            CloseHomeSearch();
+        }
+
+        /// <summary>
+        /// Kutudaki yazıyı tüm ürün cinslerindeki tüm özelliklerde arar (2 harften itibaren).
+        /// Sonuçları, ürün cinsi listesinin altına açılan kutuda, cinse göre gruplanmış
+        /// tablolar halinde gösterir.
+        /// </summary>
+        private void RunHomeSearch()
+        {
+            var text = HomeSearchBox.Text.Trim();
+
+            if (text.Length < 2)
+            {
+                CloseHomeSearch();
+                return;
+            }
+
+            var groups = ProductSearchRepository.Search(text);
+
+            if (groups.Count == 0)
+            {
+                HomeSearchGroupsPanel.Children.Clear();
+                HomeSearchGroupsPanel.Children.Add(new TextBlock
+                {
+                    Text = "Sonuç bulunamadı.",
+                    Margin = new Thickness(4),
+                    Foreground = Brushes.Gray
+                });
+                HomeSearchPopup.IsOpen = true;
+                return;
+            }
+
+            BuildHomeSearchGroups(groups, text);
+            HomeSearchPopup.IsOpen = true;
+        }
+
+        private void CloseHomeSearch()
+        {
+            HomeSearchPopup.IsOpen = false;
+            HomeSearchGroupsPanel.Children.Clear();
+        }
+
+        /// <summary>
+        /// Her ürün cinsi grubu için bir başlık (Expander) ve altında o cinsin
+        /// sütunlarını gösteren bir tablo (DataGrid) oluşturur.
+        /// </summary>
+        private void BuildHomeSearchGroups(List<HomeSearchGroup> groups, string searchText)
+        {
+            HomeSearchGroupsPanel.Children.Clear();
+
+            foreach (var group in groups)
+            {
+                var grid = new DataGrid
+                {
+                    ItemsSource = group.View,
+                    AutoGenerateColumns = true,
+                    IsReadOnly = true,
+                    CanUserAddRows = false,
+                    CanUserDeleteRows = false,
+                    CanUserReorderColumns = false,
+                    CanUserSortColumns = false,
+                    HeadersVisibility = DataGridHeadersVisibility.Column,
+                    GridLinesVisibility = DataGridGridLinesVisibility.All,
+                    MaxHeight = 220
+                };
+
+                grid.AutoGeneratingColumn += (s, e) =>
+                    HomeSearchGrid_AutoGeneratingColumn(s, e, searchText);
+
+                var capturedGroup = group;
+                var capturedGrid = grid;
+                grid.MouseDoubleClick += (s, e) =>
+                    HomeSearchGrid_MouseDoubleClick(capturedGrid, capturedGroup);
+
+                var expander = new Expander
+                {
+                    Header = group.TypeName + " (" + group.View.Count + ")",
+                    FontWeight = FontWeights.SemiBold,
+                    IsExpanded = true,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Content = grid
+                };
+
+                HomeSearchGroupsPanel.Children.Add(expander);
+            }
+        }
+
+        /// <summary>
+        /// Tablo sütunları otomatik oluşurken, gizli "__ProductId" sütununu saklar ve
+        /// aranan yazıyla eşleşen hücrelerin kırmızı görünmesini sağlar.
+        /// </summary>
+        private void HomeSearchGrid_AutoGeneratingColumn(
+            object sender, DataGridAutoGeneratingColumnEventArgs e, string searchText)
+        {
+            if (e.PropertyName == ProductSearchRepository.ProductIdColumn)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            var textColumn = e.Column as DataGridTextColumn;
+            if (textColumn == null)
+            {
+                return;
+            }
+
+            var style = new Style(typeof(TextBlock));
+            var binding = new Binding(e.PropertyName)
+            {
+                Converter = new HomeSearchHighlightConverter(searchText)
+            };
+            style.Setters.Add(new Setter(TextBlock.ForegroundProperty, binding));
+            textColumn.ElementStyle = style;
+        }
+
+        /// <summary>
+        /// Sonuç tablosunda bir satıra çift tıklanınca o ürünün cinsinin sayfasını açar
+        /// ve arama kutusundaki yazıyı o sayfanın kendi arama kutusuna da yazar.
+        /// </summary>
+        private void HomeSearchGrid_MouseDoubleClick(DataGrid grid, HomeSearchGroup group)
+        {
+            var rowView = grid.SelectedItem as DataRowView;
+            if (rowView == null)
+            {
+                return;
+            }
+
+            var type = ProductTypeRepository.GetAll().FirstOrDefault(t => t.Id == group.ProductTypeId);
+            if (type == null)
+            {
+                return;
+            }
+
+            var text = HomeSearchBox.Text.Trim();
+
+            HomeSearchBox.Clear();
+            CloseHomeSearch();
+
+            ShowTypePage(type);
+            TypeSearchBox.Text = text;
+        }
+
+        /// <summary>
+        /// Bir hücrenin yazısı aranan yazıyı içeriyorsa kırmızı, içermiyorsa siyah verir.
+        /// </summary>
+        private class HomeSearchHighlightConverter : IValueConverter
+        {
+            private readonly string _searchText;
+
+            public HomeSearchHighlightConverter(string searchText)
+            {
+                _searchText = searchText;
+            }
+
+            public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                var text = value as string;
+                if (!string.IsNullOrEmpty(text) &&
+                    text.IndexOf(_searchText, StringComparison.CurrentCultureIgnoreCase) >= 0)
+                {
+                    return Brushes.Red;
+                }
+
+                return Brushes.Black;
+            }
+
+            public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                throw new NotSupportedException();
+            }
+        }
+
+        /// <summary>
+        /// Sonuç kutusunun sağ-alt köşesindeki tutamaç sürüklenince kutuyu büyütür/küçültür.
+        /// </summary>
+        private void HomeSearchResizeThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            var newWidth = HomeSearchOverlayBorder.Width + e.HorizontalChange;
+            var newHeight = HomeSearchOverlayBorder.Height + e.VerticalChange;
+
+            if (newWidth >= 400)
+            {
+                HomeSearchOverlayBorder.Width = newWidth;
+            }
+
+            if (newHeight >= 200)
+            {
+                HomeSearchOverlayBorder.Height = newHeight;
+            }
         }
 
         private void AssignPropertiesButton_Click(object sender, RoutedEventArgs e)

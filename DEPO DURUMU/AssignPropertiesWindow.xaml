@@ -53,6 +53,20 @@
                 <TextBlock DockPanel.Dock="Top"
                            Text="Bu cinse bağlı özellikler"
                            Margin="0,0,0,5" />
+
+                <StackPanel DockPanel.Dock="Bottom"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,6,0,0">
+                    <Button Content="&#x2191; Yukarı"
+                            Width="80"
+                            Margin="0,0,6,0"
+                            Click="MoveUpButton_Click" />
+                    <Button Content="&#x2193; Aşağı"
+                            Width="80"
+                            Click="MoveDownButton_Click" />
+                </StackPanel>
+
                 <ListBox x:Name="AssignedList" />
             </DockPanel>
         </Grid>

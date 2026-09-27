@@ -26,8 +26,22 @@
 
                 <!-- SOL BÖLÜM: ürün cinsleri -->
                 <DockPanel Grid.Column="0" Margin="10">
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBox x:Name="HomeSearchBox"
+                                 Height="26"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="HomeSearchBox_TextChanged"
+                                 KeyDown="HomeSearchBox_KeyDown" />
+                        <TextBlock x:Name="HomeSearchPlaceholder"
+                                   Text="Ara"
+                                   Foreground="Gray"
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False" />
+                    </Grid>
+
                     <TextBlock DockPanel.Dock="Top"
-                               Text="Ürün cinsleri (açmak için çift tıklayın)"
+                               Text="Ürün cinsleri "
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"
                                Margin="0,0,0,5" />
@@ -35,6 +49,39 @@
                     <ListBox x:Name="ProductTypeList"
                              MouseDoubleClick="ProductTypeList_MouseDoubleClick" />
                 </DockPanel>
+
+                <!-- ANA SAYFA ARAMA SONUÇLARI: sağ-alt köşeden sürüklenerek büyütülebilir -->
+                <Popup x:Name="HomeSearchPopup"
+                       PlacementTarget="{Binding ElementName=HomeSearchBox}"
+                       Placement="Bottom"
+                       StaysOpen="True"
+                       AllowsTransparency="True">
+                    <Border x:Name="HomeSearchOverlayBorder"
+                            Width="650"
+                            Height="420"
+                            Background="White"
+                            BorderBrush="Gray"
+                            BorderThickness="1">
+                        <DockPanel>
+                            <Thumb x:Name="HomeSearchResizeThumb"
+                                   DockPanel.Dock="Bottom"
+                                   HorizontalAlignment="Right"
+                                   Width="16"
+                                   Height="16"
+                                   Cursor="SizeNWSE"
+                                   Background="Gray"
+                                   DragDelta="HomeSearchResizeThumb_DragDelta" />
+                            <Button DockPanel.Dock="Top"
+                                    Content="Kapat (X)"
+                                    HorizontalAlignment="Right"
+                                    Margin="4"
+                                    Click="HomeSearchCloseButton_Click" />
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="HomeSearchGroupsPanel" Margin="8" />
+                            </ScrollViewer>
+                        </DockPanel>
+                    </Border>
+                </Popup>
 
                 <!-- ORTA BÖLÜM: şimdilik boş -->
                 <Grid Grid.Column="1" Margin="0,10,10,10" />
@@ -76,10 +123,28 @@
                                FontSize="16"
                                Margin="0,0,0,10" />
 
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <TextBox x:Name="TypeSearchBox"
+                                 Height="26"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="TypeSearchBox_TextChanged" />
+                        <TextBlock x:Name="TypeSearchPlaceholder"
+                                   Text="Ara"
+                                   Foreground="Gray"
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False" />
+                    </Grid>
+
                     <StackPanel DockPanel.Dock="Top"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Margin="0,0,0,10">
+                        <Button Content="Tümünü Seç/Kaldır"
+                                Width="140"
+                                Height="30"
+                                Margin="0,0,6,0"
+                                Click="SelectAllButton_Click" />
                         <Button Content="Seçilenleri Sil"
                                 Width="130"
                                 Height="30"
@@ -96,6 +161,7 @@
                               AutoGenerateColumns="False"
                               IsReadOnly="False"
                               CanUserAddRows="False"
+                              CanUserSortColumns="False"
                               MouseDoubleClick="ProductGrid_MouseDoubleClick" />
                 </DockPanel>
             </Grid>
