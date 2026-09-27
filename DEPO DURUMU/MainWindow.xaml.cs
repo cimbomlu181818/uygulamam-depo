@@ -14,14 +14,19 @@ namespace DEPO_DURUMU
 {
     public partial class MainWindow : Window
     {
-        // Tabloda "Sıra No" ve "Seçili" (toplu silme onay kutusu) için kullanılan
-        // dahili sütun adları. Bir özellik yanlışlıkla bu isimle çakışmasın diye
-        // normal isimlerden farklı seçildi.
+        // Tabloda "Sıra No", "Seçili" (toplu silme onay kutusu) ve gizli "Ürün Id"
+        // için kullanılan dahili sütun adları. Bir özellik yanlışlıkla bu isimle
+        // çakışmasın diye normal isimlerden farklı seçildi.
         private const string NoColumnName = "__No";
         private const string SelectedColumnName = "__Selected";
+        private const string IdColumnName = "__ProductId";
 
         private ProductType _currentType;
         private List<Product> _currentProducts = new List<Product>();
+        private List<PropertyDefinition> _currentProperties = new List<PropertyDefinition>();
+
+        // Seçili filtreler: alan numarası -> seçilen değerler.
+        private readonly Dictionary<int, HashSet<string>> _selected = new Dictionary<int, HashSet<string>>();
 
         public MainWindow()
         {
@@ -62,19 +67,37 @@ namespace DEPO_DURUMU
             TypePageTitle.Text = type.Name;
             TypeSearchBox.Text = "";
 
+            // Eski arama ve filtreler temizlenir.
+            _selected.Clear();
+            ShowNormalBar();
+
             HomePage.Visibility = Visibility.Collapsed;
             TypePage.Visibility = Visibility.Visible;
 
             LoadProductGrid(type);
         }
 
+        private void ShowNormalBar()
+        {
+            NormalLeftPanel.Visibility = Visibility.Visible;
+            FilterLeftPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void ShowFilterBar()
+        {
+            NormalLeftPanel.Visibility = Visibility.Collapsed;
+            FilterLeftPanel.Visibility = Visibility.Visible;
+        }
+
         private void LoadProductGrid(ProductType type)
         {
             var properties = TypePropertyRepository.GetForType(type.Id);
+            _currentProperties = properties;
 
             var table = new DataTable();
             table.Columns.Add(NoColumnName, typeof(int));
             table.Columns.Add(SelectedColumnName, typeof(bool));
+            table.Columns.Add(IdColumnName, typeof(int));
 
             foreach (var property in properties)
             {
@@ -82,9 +105,9 @@ namespace DEPO_DURUMU
             }
 
             // Bu cinse ait gerçek ürünleri ve değerlerini tabloya satır olarak ekle.
-            // _currentProducts, tablodaki satır sırasıyla birebir aynı sırada tutulur;
-            // böylece bir satıra çift tıklandığında ya da işaretlendiğinde hangi ürün
-            // olduğunu buluruz.
+            // Her satırda gizli __ProductId sütunu tutulur; çift tıklama ve silme
+            // işlemleri artık satır sırasına değil, doğrudan bu Id'ye bakar. Böylece
+            // bir filtre uygulanmışken bile yanlış ürün açılmaz/silinmez.
             var products = ProductRepository.GetForType(type.Id);
             _currentProducts = products;
 
@@ -97,6 +120,7 @@ namespace DEPO_DURUMU
                 var row = table.NewRow();
                 row[NoColumnName] = rowNumber;
                 row[SelectedColumnName] = false;
+                row[IdColumnName] = product.Id;
 
                 foreach (var property in properties)
                 {
@@ -107,6 +131,9 @@ namespace DEPO_DURUMU
 
             BuildGridColumns(properties);
             ProductGrid.ItemsSource = table.DefaultView;
+
+            BuildFilterPanel(table, properties);
+            ApplyFilters();
         }
 
         /// <summary>
@@ -164,13 +191,12 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var index = ProductGrid.Items.IndexOf(rowView);
-            if (index < 0 || index >= _currentProducts.Count)
+            var productId = (int)rowView[IdColumnName];
+            var product = _currentProducts.FirstOrDefault(p => p.Id == productId);
+            if (product == null)
             {
                 return;
             }
-
-            var product = _currentProducts[index];
 
             var window = new ProductDetailWindow(_currentType, product.Id) { Owner = this };
             window.ShowDialog();
@@ -238,14 +264,14 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var toDelete = new List<Product>();
+            var toDelete = new List<int>();
 
-            for (var i = 0; i < view.Count; i++)
+            foreach (DataRowView rowView in view)
             {
-                var isSelected = (bool)view[i][SelectedColumnName];
-                if (isSelected && i < _currentProducts.Count)
+                var isSelected = (bool)rowView[SelectedColumnName];
+                if (isSelected)
                 {
-                    toDelete.Add(_currentProducts[i]);
+                    toDelete.Add((int)rowView[IdColumnName]);
                 }
             }
 
@@ -265,13 +291,251 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            foreach (var product in toDelete)
+            foreach (var productId in toDelete)
             {
-                ProductRepository.Delete(product.Id);
+                ProductRepository.Delete(productId);
             }
 
             LoadProductGrid(_currentType);
         }
+
+        // ---------- FİLTRE BARI ----------
+
+        /// <summary>
+        /// Tipin alanlarından ve ürünlerdeki mevcut değerlerden filtre onay kutularını oluşturur.
+        /// </summary>
+        private void BuildFilterPanel(DataTable table, List<PropertyDefinition> properties)
+        {
+            FilterItemsPanel.Children.Clear();
+
+            bool anyProperty = false;
+
+            foreach (var property in properties)
+            {
+                anyProperty = true;
+                string column = property.Name;
+
+                var distinct = new HashSet<string>();
+                foreach (DataRow row in table.Rows)
+                {
+                    if (row.IsNull(column))
+                    {
+                        continue;
+                    }
+
+                    string value = (string)row[column];
+                    if (value.Length > 0)
+                    {
+                        distinct.Add(value);
+                    }
+                }
+
+                // Artık var olmayan değerler seçimden düşer (örneğin ürün silindiyse).
+                HashSet<string> chosen;
+                if (_selected.TryGetValue(property.Id, out chosen))
+                {
+                    chosen.IntersectWith(distinct);
+                    if (chosen.Count == 0)
+                    {
+                        _selected.Remove(property.Id);
+                        chosen = null;
+                    }
+                }
+                else
+                {
+                    chosen = null;
+                }
+
+                var content = new StackPanel { Margin = new Thickness(4, 4, 0, 4) };
+
+                if (distinct.Count == 0)
+                {
+                    content.Children.Add(new TextBlock
+                    {
+                        Text = "(kayıtlı değer yok)",
+                        Foreground = Brushes.Gray
+                    });
+                }
+                else
+                {
+                    // Değer sayısı fazla olabileceği için, listenin üstüne küçük bir arama
+                    // kutusu koyuyoruz. Bu kutu sadece hangi kutucukların görüneceğini
+                    // belirler; işaretli değerler görünürlükten bağımsız olarak seçili kalır.
+                    var valueSearchBox = new TextBox
+                    {
+                        Height = 24,
+                        Margin = new Thickness(0, 0, 0, 4),
+                        VerticalContentAlignment = VerticalAlignment.Center,
+                        ToolTip = "Değerlerde ara"
+                    };
+
+                    valueSearchBox.TextChanged += (s, e) =>
+                        FilterValueSearchBox_TextChanged(valueSearchBox, content);
+
+                    content.Children.Add(valueSearchBox);
+                }
+
+                foreach (string value in SortValues(distinct, property.DataType))
+                {
+                    var box = new CheckBox
+                    {
+                        Content = new TextBlock { Text = value, TextWrapping = TextWrapping.Wrap },
+                        Tag = Tuple.Create(property.Id, value),
+                        Margin = new Thickness(0, 2, 0, 2),
+                        IsChecked = chosen != null && chosen.Contains(value)
+                    };
+
+                    box.Checked += FilterCheckBox_Changed;
+                    box.Unchecked += FilterCheckBox_Changed;
+                    content.Children.Add(box);
+                }
+
+                FilterItemsPanel.Children.Add(new Expander
+                {
+                    Header = property.Name,
+                    IsExpanded = true,
+                    Margin = new Thickness(0, 0, 0, 6),
+                    Content = content
+                });
+            }
+
+            if (!anyProperty)
+            {
+                FilterItemsPanel.Children.Add(new TextBlock
+                {
+                    Text = "Bu tipte filtrelenecek alan yok.",
+                    Foreground = Brushes.Gray,
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+        }
+
+        /// <summary>
+        /// Bir özelliğin değer arama kutusuna yazıldıkça, o özelliğin altındaki onay kutularından
+        /// yazıyla eşleşmeyenleri gizler. Sadece görünürlüğü değiştirir; işaretli kutuların
+        /// seçimini (_selected) etkilemez.
+        /// </summary>
+        private static void FilterValueSearchBox_TextChanged(TextBox searchBox, StackPanel content)
+        {
+            var text = searchBox.Text.Trim();
+
+            foreach (var child in content.Children)
+            {
+                var box = child as CheckBox;
+                if (box == null)
+                {
+                    continue;
+                }
+
+                var label = ((TextBlock)box.Content).Text;
+
+                box.Visibility = text.Length == 0 ||
+                                  label.IndexOf(text, StringComparison.CurrentCultureIgnoreCase) >= 0
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>
+        /// Değerleri alanın türüne göre sıralar: sayılar sayı gibi, tarihler tarih gibi, yazılar Türkçe alfabeyle.
+        /// </summary>
+        private static List<string> SortValues(HashSet<string> values, string dataType)
+        {
+            var list = values.ToList();
+            var turkish = new CultureInfo("tr-TR");
+
+            if (dataType == "Sayı")
+            {
+                list.Sort((a, b) =>
+                {
+                    double x, y;
+                    bool okX = double.TryParse(a, NumberStyles.Float, turkish, out x);
+                    bool okY = double.TryParse(b, NumberStyles.Float, turkish, out y);
+
+                    if (okX && okY)
+                    {
+                        return x.CompareTo(y);
+                    }
+
+                    return string.Compare(a, b, turkish, CompareOptions.IgnoreCase);
+                });
+            }
+            else if (dataType == "Tarih")
+            {
+                list.Sort((a, b) =>
+                {
+                    DateTime x, y;
+                    bool okX = DateTime.TryParseExact(a, "dd.MM.yyyy",
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out x);
+                    bool okY = DateTime.TryParseExact(b, "dd.MM.yyyy",
+                        CultureInfo.InvariantCulture, DateTimeStyles.None, out y);
+
+                    if (okX && okY)
+                    {
+                        return x.CompareTo(y);
+                    }
+
+                    return string.Compare(a, b, turkish, CompareOptions.IgnoreCase);
+                });
+            }
+            else
+            {
+                list.Sort((a, b) => string.Compare(a, b, turkish, CompareOptions.IgnoreCase));
+            }
+
+            return list;
+        }
+
+        /// <summary>
+        /// Bir onay kutusu işaretlenince ya da işareti kalkınca çalışır.
+        /// </summary>
+        private void FilterCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            var box = (CheckBox)sender;
+            var tag = (Tuple<int, string>)box.Tag;
+
+            HashSet<string> set;
+
+            if (box.IsChecked == true)
+            {
+                if (!_selected.TryGetValue(tag.Item1, out set))
+                {
+                    set = new HashSet<string>();
+                    _selected[tag.Item1] = set;
+                }
+
+                set.Add(tag.Item2);
+            }
+            else if (_selected.TryGetValue(tag.Item1, out set))
+            {
+                set.Remove(tag.Item2);
+
+                if (set.Count == 0)
+                {
+                    _selected.Remove(tag.Item1);
+                }
+            }
+
+            ApplyFilters();
+        }
+
+        private void FilterButton_Click(object sender, RoutedEventArgs e)
+        {
+            ShowFilterBar();
+        }
+
+        private void FilterBackButton_Click(object sender, RoutedEventArgs e)
+        {
+            ShowNormalBar();
+        }
+
+        private void ClearFiltersButton_Click(object sender, RoutedEventArgs e)
+        {
+            _selected.Clear();
+            ApplyFilters();
+        }
+
+        // ---------- ARAMA VE FİLTRELERİ UYGULAMA ----------
 
         private void TypeSearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
@@ -279,14 +543,15 @@ namespace DEPO_DURUMU
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            ApplyTypeSearch();
+            ApplyFilters();
         }
 
         /// <summary>
-        /// Cins sayfasındaki arama kutusuna yazılan metni, o cinsin TÜM özellik
-        /// sütunlarında arar (2 harften itibaren). Sıra No ve Seçili sütunlarını hariç tutar.
+        /// Arama kutusuna yazılan metni (tüm özellik sütunlarında, 2 harften itibaren) ve
+        /// seçili filtrelerin hepsini birlikte uygular.
+        /// Farklı alanlar "ve", aynı alandaki değerler "veya" ile birleşir.
         /// </summary>
-        private void ApplyTypeSearch()
+        private void ApplyFilters()
         {
             var view = ProductGrid.ItemsSource as DataView;
             if (view == null)
@@ -294,21 +559,45 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var text = TypeSearchBox.Text.Trim();
+            var conditions = new List<string>();
 
-            if (text.Length < 2)
+            var text = TypeSearchBox.Text.Trim();
+            if (text.Length >= 2)
             {
-                view.RowFilter = "";
-                return;
+                var pattern = EscapeForLike(text);
+
+                var searchConditions = view.Table.Columns.Cast<DataColumn>()
+                    .Where(c => c.ColumnName != NoColumnName
+                             && c.ColumnName != SelectedColumnName
+                             && c.ColumnName != IdColumnName)
+                    .Select(c => "[" + c.ColumnName + "] LIKE '%" + pattern + "%'");
+
+                conditions.Add("(" + string.Join(" OR ", searchConditions) + ")");
             }
 
-            var pattern = EscapeForLike(text);
+            foreach (var pair in _selected)
+            {
+                var property = _currentProperties.FirstOrDefault(p => p.Id == pair.Key);
+                if (property == null)
+                {
+                    continue;
+                }
 
-            var conditions = view.Table.Columns.Cast<DataColumn>()
-                .Where(c => c.ColumnName != NoColumnName && c.ColumnName != SelectedColumnName)
-                .Select(c => "[" + c.ColumnName + "] LIKE '%" + pattern + "%'");
+                var quoted = pair.Value.Select(v => "'" + v.Replace("'", "''") + "'");
+                conditions.Add("[" + property.Name + "] IN (" + string.Join(",", quoted) + ")");
+            }
 
-            view.RowFilter = string.Join(" OR ", conditions);
+            view.RowFilter = string.Join(" AND ", conditions);
+
+            var total = view.Table.Rows.Count;
+
+            ProductCountText.Text = conditions.Count > 0
+                ? view.Count + " / " + total + " ürün"
+                : total + " ürün";
+
+            FilterButton.Content = _selected.Count > 0
+                ? "Filtrele (" + _selected.Count + ")"
+                : "Filtrele";
         }
 
         /// <summary>

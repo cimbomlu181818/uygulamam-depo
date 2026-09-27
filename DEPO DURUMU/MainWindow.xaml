@@ -94,34 +94,81 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <!-- SOL BÖLÜM: geri dönme, özellik atama, ürün ekleme düğmeleri -->
-                <DockPanel Grid.Column="0" Margin="10">
-                    <Button DockPanel.Dock="Top"
-                            Content="&#x2190; Ana sayfaya dön"
-                            Click="BackButton_Click"
-                            Height="30"
-                            Margin="0,0,0,10" />
+                <!-- SOL BÖLÜM: iki mod var, biri görünür -->
+                <Grid Grid.Column="0">
 
-                    <Button DockPanel.Dock="Top"
-                            Content="Özellik Ata"
-                            Click="AssignPropertiesButton_Click"
-                            Height="30"
-                            Margin="0,0,0,10" />
+                    <!-- MOD 1: NORMAL BAR (geri, özellik ata, ürün ekle, filtrele düğmeleri) -->
+                    <StackPanel x:Name="NormalLeftPanel" Margin="10">
 
-                    <Button DockPanel.Dock="Top"
-                            Content="Yeni Ürün Ekle"
-                            Click="AddProductButton_Click"
-                            Height="30"
-                            Margin="0,0,0,10" />
-                </DockPanel>
+                        <Button Content="&#x2190; Ana sayfaya dön"
+                                Click="BackButton_Click"
+                                Height="30"
+                                Margin="0,0,0,10" />
+
+                        <Button Content="Özellik Ata"
+                                Click="AssignPropertiesButton_Click"
+                                Height="30"
+                                Margin="0,0,0,10" />
+
+                        <Button Content="Yeni Ürün Ekle"
+                                Click="AddProductButton_Click"
+                                Height="30"
+                                Margin="0,0,0,10" />
+
+                        <Button x:Name="FilterButton"
+                                Content="Filtrele"
+                                Click="FilterButton_Click"
+                                Height="30"
+                                Margin="0,0,0,10" />
+
+                    </StackPanel>
+
+                    <!-- MOD 2: FİLTRE BARI (üstte geri, altında filtre öğeleri) -->
+                    <DockPanel x:Name="FilterLeftPanel"
+                               Margin="10"
+                               Visibility="Collapsed">
+
+                        <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+
+                            <Button Content="&#x2190; Geri"
+                                    Height="30"
+                                    HorizontalAlignment="Left"
+                                    Width="80"
+                                    Margin="0,0,0,10"
+                                    Click="FilterBackButton_Click" />
+
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right"
+                                        Content="Temizle"
+                                        Width="70"
+                                        Click="ClearFiltersButton_Click" />
+                                <TextBlock Text="Filtreler"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                            </DockPanel>
+
+                        </StackPanel>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="FilterItemsPanel" />
+                        </ScrollViewer>
+
+                    </DockPanel>
+
+                </Grid>
 
                 <!-- ORTA BÖLÜM: Excel benzeri tablo -->
                 <DockPanel Grid.Column="1" Margin="0,10,10,10">
-                    <TextBlock x:Name="TypePageTitle"
-                               DockPanel.Dock="Top"
-                               FontWeight="Bold"
-                               FontSize="16"
-                               Margin="0,0,0,10" />
+
+                    <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <TextBlock x:Name="ProductCountText"
+                                   DockPanel.Dock="Right"
+                                   Foreground="Gray"
+                                   VerticalAlignment="Center" />
+                        <TextBlock x:Name="TypePageTitle"
+                                   FontWeight="Bold"
+                                   FontSize="16" />
+                    </DockPanel>
 
                     <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
                         <TextBox x:Name="TypeSearchBox"
