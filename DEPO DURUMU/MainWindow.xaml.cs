@@ -80,6 +80,7 @@ namespace DEPO_DURUMU
         {
             LoadProductTypes();
             LoadHomeStatistics();
+            LoadRecentLog();
 
             HomePage.Visibility = Visibility.Visible;
             TypePage.Visibility = Visibility.Collapsed;
@@ -91,6 +92,22 @@ namespace DEPO_DURUMU
             ProductTypeList.ItemsSource = null;
             ProductTypeList.DisplayMemberPath = "Name";
             ProductTypeList.ItemsSource = ProductTypeRepository.GetAll();
+        }
+
+        /// <summary>Ana sayfadaki "Son işlem yapılan cihazlar" tablosunu, kayıt defterinin son 20 satırıyla doldurur.</summary>
+        private void LoadRecentLog()
+        {
+            var recent = LogRepository.GetRecent(20);
+
+            RecentLogGrid.ItemsSource = recent;
+            RecentLogGrid.Visibility = recent.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            NoRecentLogText.Visibility = recent.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+        }
+
+        private void LogMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new LogWindow { Owner = this };
+            window.ShowDialog();
         }
 
         // ---------- ANA SAYFA İSTATİSTİKLERİ ----------

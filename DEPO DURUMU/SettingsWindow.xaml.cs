@@ -29,6 +29,7 @@ namespace DEPO_DURUMU
             }
 
             ProductTypeRepository.Add(name);
+            LogRepository.Add(name, "", "Cins eklendi");
             NewTypeNameBox.Text = "";
             LoadTypes();
         }
@@ -51,6 +52,7 @@ namespace DEPO_DURUMU
             }
 
             ProductTypeRepository.Rename(selected.Id, newName);
+            LogRepository.Add(newName, "Eski ad: " + selected.Name, "Cins yeniden adlandırıldı");
             LoadTypes();
         }
 
@@ -74,6 +76,11 @@ namespace DEPO_DURUMU
             }
 
             var deleted = ProductTypeRepository.Delete(selected.Id);
+            if (deleted)
+            {
+                LogRepository.Add(selected.Name, "", "Cins silindi");
+            }
+
             if (!deleted)
             {
                 MessageBox.Show(
@@ -106,6 +113,7 @@ namespace DEPO_DURUMU
             var dataType = dataTypeItem != null ? dataTypeItem.Content.ToString() : "Metin";
 
             PropertyDefinitionRepository.Add(name, dataType, false);
+            LogRepository.Add(null, name + " (" + dataType + ")", "Özellik eklendi");
 
             NewPropertyNameBox.Text = "";
             LoadProperties();
@@ -136,6 +144,7 @@ namespace DEPO_DURUMU
             }
 
             PropertyDefinitionRepository.Rename(selected.Id, newName);
+            LogRepository.Add(null, "Eski ad: " + selected.Name + " -> " + newName, "Özellik yeniden adlandırıldı");
             LoadProperties();
         }
 
@@ -166,6 +175,11 @@ namespace DEPO_DURUMU
             }
 
             var deleted = PropertyDefinitionRepository.Delete(selected.Id);
+            if (deleted)
+            {
+                LogRepository.Add(null, selected.Name, "Özellik silindi");
+            }
+
             if (!deleted)
             {
                 MessageBox.Show(

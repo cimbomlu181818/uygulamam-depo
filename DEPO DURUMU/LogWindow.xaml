@@ -1,0 +1,47 @@
+﻿<Window x:Class="DEPO_DURUMU.LogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="İşlem Geçmişi"
+        Height="500" Width="800"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel Margin="10">
+
+        <Grid DockPanel.Dock="Top" Margin="0,0,0,10">
+            <TextBox x:Name="LogSearchBox"
+                     Height="26"
+                     VerticalContentAlignment="Center"
+                     TextChanged="LogSearchBox_TextChanged" />
+            <TextBlock x:Name="LogSearchPlaceholder"
+                       Text="Ara (zaman, cins, ürün, işlem, kullanıcı)"
+                       Foreground="Gray"
+                       Margin="6,0,0,0"
+                       VerticalAlignment="Center"
+                       IsHitTestVisible="False" />
+        </Grid>
+
+        <Button DockPanel.Dock="Bottom"
+                Content="Kapat"
+                Height="30"
+                Width="80"
+                HorizontalAlignment="Right"
+                Margin="0,10,0,0"
+                Click="CloseButton_Click" />
+
+        <DataGrid x:Name="LogGrid"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  CanUserSortColumns="False"
+                  HeadersVisibility="Column">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Zaman" Binding="{Binding CreatedAt, StringFormat='dd.MM.yyyy HH:mm:ss'}" Width="140" />
+                <DataGridTextColumn Header="Ürün tipi" Binding="{Binding TypeName}" Width="120" />
+                <DataGridTextColumn Header="Açıklama" Binding="{Binding Description}" Width="*" />
+                <DataGridTextColumn Header="İşlem" Binding="{Binding ActionType}" Width="180" />
+                <DataGridTextColumn Header="Kullanıcı" Binding="{Binding UserName}" Width="110" />
+            </DataGrid.Columns>
+        </DataGrid>
+
+    </DockPanel>
+</Window>

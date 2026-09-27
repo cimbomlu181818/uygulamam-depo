@@ -12,6 +12,7 @@
         <Menu DockPanel.Dock="Top" Padding="4">
             <MenuItem Header="Ana Sayfa" Click="HomeMenu_Click" />
             <MenuItem Header="Ayarlar" Click="SettingsMenu_Click" />
+            <MenuItem Header="Log" Click="LogMenu_Click" />
         </Menu>
 
         <!-- MENÜNÜN ALTINDAKİ ALAN: iki sayfa üst üste durur, biri görünür -->
@@ -83,9 +84,36 @@
                     </Border>
                 </Popup>
 
-                <!-- ORTA BÖLÜM: istatistik kutuları -->
+                <!-- ORTA BÖLÜM: istatistik kutuları + son işlemler -->
                 <DockPanel Grid.Column="1" Margin="0,10,10,10">
-                    <WrapPanel x:Name="StatisticsPanel" />
+                    <WrapPanel x:Name="StatisticsPanel" DockPanel.Dock="Top" />
+
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="Son işlem yapılan cihazlar"
+                               FontWeight="SemiBold"
+                               Margin="0,15,0,5" />
+
+                    <TextBlock x:Name="NoRecentLogText"
+                               DockPanel.Dock="Top"
+                               Text="Henüz işlem yapılmış cihaz yok."
+                               Foreground="Gray"
+                               Visibility="Collapsed" />
+
+                    <DataGrid x:Name="RecentLogGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserSortColumns="False"
+                              HeadersVisibility="Column"
+                              MaxHeight="260">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Zaman" Binding="{Binding CreatedAt, StringFormat='dd.MM.yyyy HH:mm'}" Width="130" />
+                            <DataGridTextColumn Header="Ürün tipi" Binding="{Binding TypeName}" Width="120" />
+                            <DataGridTextColumn Header="Ürün" Binding="{Binding Description}" Width="*" />
+                            <DataGridTextColumn Header="Son işlem" Binding="{Binding ActionType}" Width="140" />
+                            <DataGridTextColumn Header="Kullanıcı" Binding="{Binding UserName}" Width="100" />
+                        </DataGrid.Columns>
+                    </DataGrid>
                 </DockPanel>
             </Grid>
 
@@ -107,7 +135,7 @@
                                 Height="30"
                                 Margin="0,0,0,10" />
 
-                        <Button Content="Özellik Ata"
+                        <Button Content="Özellikleri düzenle"
                                 Click="AssignPropertiesButton_Click"
                                 Height="30"
                                 Margin="0,0,0,10" />

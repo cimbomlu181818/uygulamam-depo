@@ -7,12 +7,14 @@ namespace DEPO_DURUMU
     public partial class AssignPropertiesWindow : Window
     {
         private readonly int _productTypeId;
+        private readonly string _typeName;
 
         public AssignPropertiesWindow(int productTypeId, string typeName)
         {
             InitializeComponent();
 
             _productTypeId = productTypeId;
+            _typeName = typeName;
             TitleText.Text = "\"" + typeName + "\" için özellikler";
 
             LoadLists();
@@ -46,6 +48,7 @@ namespace DEPO_DURUMU
             }
 
             TypePropertyRepository.AddPropertyToType(_productTypeId, selected.Id);
+            LogRepository.Add(_typeName, selected.Name, "Cinse özellik atandı");
             LoadLists();
         }
 
@@ -60,6 +63,7 @@ namespace DEPO_DURUMU
             }
 
             TypePropertyRepository.RemovePropertyFromType(_productTypeId, selected.Id);
+            LogRepository.Add(_typeName, selected.Name, "Cinsten özellik kaldırıldı");
             LoadLists();
         }
 

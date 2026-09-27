@@ -93,6 +93,15 @@ CREATE TABLE IF NOT EXISTS HomeStatistics (
     PropertyId     INTEGER NOT NULL REFERENCES PropertyDefinitions(Id),
     SortOrder      INTEGER NOT NULL DEFAULT 0
 );
+
+CREATE TABLE IF NOT EXISTS ActionLogs (
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    CreatedAt    TEXT    NOT NULL,
+    UserName     TEXT    NOT NULL,
+    TypeName     TEXT,
+    Description  TEXT    NOT NULL,
+    ActionType   TEXT    NOT NULL
+);
 ";
     }
 }

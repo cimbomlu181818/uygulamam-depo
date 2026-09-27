@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using DEPO_DURUMU.Data;
@@ -130,14 +131,52 @@ namespace DEPO_DURUMU
                 }
             }
 
+            var oldValues = ProductRepository.GetValues(_productId);
+
             foreach (var property in _properties)
             {
                 var value = _editInputs[property.Id].Text.Trim();
                 ProductRepository.SetValue(_productId, property.Id, value);
             }
 
+            var newValues = ProductRepository.GetValues(_productId);
+            var changeDescription = BuildChangeDescription(oldValues, newValues);
+
+            if (!string.IsNullOrEmpty(changeDescription))
+            {
+                LogRepository.Add(_type.Name, changeDescription, "Güncellendi");
+            }
+
             Changed = true;
             BuildViewMode();
+        }
+
+        /// <summary>
+        /// Kaydetmeden önceki ve sonraki değerleri karşılaştırıp sadece değişen
+        /// alanları "Alan: eski -> yeni" biçiminde listeler. Hiçbir şey
+        /// değişmediyse boş metin döner (bu durumda log'a hiç yazılmaz).
+        /// </summary>
+        private string BuildChangeDescription(Dictionary<int, string> oldValues, Dictionary<int, string> newValues)
+        {
+            var parts = new List<string>();
+
+            foreach (var property in _properties)
+            {
+                var oldValue = oldValues.ContainsKey(property.Id) ? oldValues[property.Id] : "";
+                var newValue = newValues.ContainsKey(property.Id) ? newValues[property.Id] : "";
+
+                if (oldValue == newValue)
+                {
+                    continue;
+                }
+
+                var oldText = string.IsNullOrEmpty(oldValue) ? "(boş)" : oldValue;
+                var newText = string.IsNullOrEmpty(newValue) ? "(boş)" : newValue;
+
+                parts.Add(property.Name + ": " + oldText + " -> " + newText);
+            }
+
+            return string.Join(" | ", parts);
         }
 
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
@@ -151,9 +190,48 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            var descriptionBeforeDelete = BuildDescription(ProductRepository.GetValues(_productId));
+
             ProductRepository.Delete(_productId);
+            LogRepository.Add(_type.Name, descriptionBeforeDelete, "Silindi");
+
             Changed = true;
             DialogResult = true;
+        }
+
+        /// <summary>
+        /// Log defterine yazılacak, o anki değerleri anlatan sabit metni oluşturur.
+        /// Seri No doluysa öne alınır, ardından dolu ilk birkaç özellik eklenir.
+        /// </summary>
+        private string BuildDescription(Dictionary<int, string> values)
+        {
+            var parts = new List<string>();
+
+            var serial = _properties.FirstOrDefault(p => p.IsSerialNumber);
+            if (serial != null && values.ContainsKey(serial.Id) && !string.IsNullOrEmpty(values[serial.Id]))
+            {
+                parts.Add(serial.Name + ": " + values[serial.Id]);
+            }
+
+            foreach (var property in _properties)
+            {
+                if (parts.Count >= 3)
+                {
+                    break;
+                }
+
+                if (property.IsSerialNumber)
+                {
+                    continue;
+                }
+
+                if (values.ContainsKey(property.Id) && !string.IsNullOrEmpty(values[property.Id]))
+                {
+                    parts.Add(property.Name + ": " + values[property.Id]);
+                }
+            }
+
+            return string.Join(" | ", parts);
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
