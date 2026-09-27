@@ -127,24 +127,6 @@ namespace DEPO_DURUMU.Data
         }
 
         /// <summary>
-        /// Var olan bir kutunun gösterdiği ürün cinsi/özelliği değiştirir. Sırası aynı kalır.
-        /// </summary>
-        public static void Update(int id, int productTypeId, int propertyId)
-        {
-            using (var connection = Database.OpenConnection())
-            using (var command = connection.CreateCommand())
-            {
-                command.CommandText =
-                    "UPDATE HomeStatistics SET ProductTypeId = @typeId, PropertyId = @propertyId " +
-                    "WHERE Id = @id;";
-                command.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
-                command.Parameters.Add(new SQLiteParameter("@propertyId", propertyId));
-                command.Parameters.Add(new SQLiteParameter("@id", id));
-                command.ExecuteNonQuery();
-            }
-        }
-
-        /// <summary>
         /// Kutuların yeni sırasını kaydeder. idsInOrder, kutuların görünmesini istediğin
         /// sırada Id listesidir (ilk eleman en başta gösterilir).
         /// </summary>

@@ -32,10 +32,48 @@ namespace DEPO_DURUMU
         private List<HomeStatisticCard> _homeStatisticCards = new List<HomeStatisticCard>();
         private Point _dragStartPoint;
 
+        // İstatistik kutuları için düzenleme modu: "Düzenle" ile açılıp kapanır.
+        // Aktifken tüm kutuların çerçevesi mavi olur ve kutular sürüklenip taşınabilir.
+        private bool _statisticsEditMode;
+
+        // Kutu çerçeveleri için renkler: normal, düzenleme modu aktif, basılı tutulup sürüklenen kutu.
+        private static readonly Brush StatisticCardNormalBrush = Brushes.Gray;
+        private static readonly Brush StatisticCardEditModeBrush = Brushes.SteelBlue;
+        private static readonly Brush StatisticCardHeldBrush = Brushes.OrangeRed;
+
         public MainWindow()
         {
             InitializeComponent();
+            PreviewMouseLeftButtonDown += MainWindow_PreviewMouseLeftButtonDown;
             ShowHome();
+        }
+
+        /// <summary>
+        /// Düzenleme modu aktifken, bir istatistik kutusunun dışında herhangi bir
+        /// yere tıklanırsa (sıralama zaten her taşımada kaydedildiğinden) düzenleme
+        /// modunu kapatır.
+        /// </summary>
+        private void MainWindow_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!_statisticsEditMode)
+            {
+                return;
+            }
+
+            var element = e.OriginalSource as DependencyObject;
+            while (element != null)
+            {
+                var border = element as Border;
+                if (border != null && border.Tag is HomeStatisticCard)
+                {
+                    return;
+                }
+
+                element = VisualTreeHelper.GetParent(element);
+            }
+
+            _statisticsEditMode = false;
+            LoadHomeStatistics();
         }
 
         private void ShowHome()
@@ -61,8 +99,9 @@ namespace DEPO_DURUMU
         /// Kayıtlı istatistik kutularını okuyup ana sayfada kart olarak gösterir.
         /// HomeStatisticsRepository.GetAll(), artık geçerli olmayan (özelliği cinsten
         /// kaldırılmış ya da cinsi silinmiş) kutuları veritabanından da otomatik siler.
-        /// Her kart hem fare ile sürüklenip başka bir kartın üzerine bırakılarak yer
-        /// değiştirebilir, hem de sağ tık menüsünden Taşı/Düzenle/Sil ile yönetilebilir.
+        /// Sağ tık menüsünden "Düzenle" ile düzenleme modu açılıp kapatılır; mod
+        /// aktifken kutuların çerçevesi mavi olur ve kutular basılı tutulup başka bir
+        /// kutunun üzerine bırakılarak yer değiştirebilir. "Sil" kutuyu kaldırır.
         /// </summary>
         private void LoadHomeStatistics()
         {
@@ -71,16 +110,6 @@ namespace DEPO_DURUMU
 
             foreach (var card in _homeStatisticCards)
             {
-                var deleteButton = new Button
-                {
-                    Content = "x",
-                    Width = 20,
-                    Height = 20,
-                    Margin = new Thickness(6, 0, 0, 0),
-                    Tag = card.Id
-                };
-                deleteButton.Click += StatisticDeleteButton_Click;
-
                 var panel = new StackPanel { Orientation = Orientation.Horizontal };
                 panel.Children.Add(new TextBlock
                 {
@@ -88,17 +117,15 @@ namespace DEPO_DURUMU
                     VerticalAlignment = VerticalAlignment.Center,
                     FontWeight = FontWeights.SemiBold
                 });
-                panel.Children.Add(deleteButton);
 
                 var border = new Border
                 {
-                    BorderBrush = Brushes.Gray,
-                    BorderThickness = new Thickness(1),
+                    BorderBrush = _statisticsEditMode ? StatisticCardEditModeBrush : StatisticCardNormalBrush,
+                    BorderThickness = _statisticsEditMode ? new Thickness(2) : new Thickness(1),
                     CornerRadius = new CornerRadius(4),
                     Padding = new Thickness(10, 6, 10, 6),
                     Margin = new Thickness(0, 0, 10, 10),
                     Background = Brushes.White,
-                    Cursor = Cursors.SizeAll,
                     AllowDrop = true,
                     Tag = card,
                     Child = panel,
@@ -106,24 +133,54 @@ namespace DEPO_DURUMU
                 };
 
                 border.PreviewMouseLeftButtonDown += StatisticCard_PreviewMouseLeftButtonDown;
+                border.PreviewMouseLeftButtonUp += StatisticCard_PreviewMouseLeftButtonUp;
                 border.MouseMove += StatisticCard_MouseMove;
                 border.Drop += StatisticCard_Drop;
 
                 StatisticsPanel.Children.Add(border);
             }
+
+            // Düzenleme modunda değilken, en sona tıklanınca yeni istatistik ekleyen "+" kutusu.
+            if (!_statisticsEditMode)
+            {
+                StatisticsPanel.Children.Add(BuildAddStatisticCard());
+            }
         }
 
-        /// <summary>Bir kartın sağ tık menüsünü (Taşı / Düzenle / Sil) oluşturur.</summary>
+        /// <summary>Son kutunun yanına eklenen, tıklanınca yeni istatistik ekleyen "+" kutusu.</summary>
+        private Border BuildAddStatisticCard()
+        {
+            var addBorder = new Border
+            {
+                BorderBrush = StatisticCardNormalBrush,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(10, 6, 10, 6),
+                Margin = new Thickness(0, 0, 10, 10),
+                Background = Brushes.White,
+                Cursor = Cursors.Hand,
+                Child = new TextBlock
+                {
+                    Text = "+",
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 16,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
+
+            addBorder.MouseLeftButtonUp += (s, e) => AddStatisticButton_Click(s, e);
+
+            return addBorder;
+        }
+
+        /// <summary>Bir kartın sağ tık menüsünü (Düzenle / Sil) oluşturur.</summary>
         private ContextMenu BuildStatisticContextMenu(HomeStatisticCard card)
         {
             var menu = new ContextMenu();
 
-            var moveItem = new MenuItem { Header = "Taşı" };
-            moveItem.Click += (s, e) => StatisticMoveMenuItem_Click(card);
-            menu.Items.Add(moveItem);
-
-            var editItem = new MenuItem { Header = "Düzenle" };
-            editItem.Click += (s, e) => StatisticEditMenuItem_Click(card);
+            var editItem = new MenuItem { Header = _statisticsEditMode ? "Düzenlemeyi Bitir" : "Düzenle" };
+            editItem.Click += (s, e) => StatisticEditMenuItem_Click();
             menu.Items.Add(editItem);
 
             var deleteItem = new MenuItem { Header = "Sil" };
@@ -133,41 +190,21 @@ namespace DEPO_DURUMU
             return menu;
         }
 
-        /// <summary>"Taşı": kutuları liste halinde gösterip Yukarı/Aşağı ile sıralamayı değiştiren pencereyi açar.</summary>
-        private void StatisticMoveMenuItem_Click(HomeStatisticCard card)
+        /// <summary>
+        /// "Düzenle": ayrı bir pencere açmak yerine düzenleme modunu açar/kapatır.
+        /// Mod aktifken tüm kutuların çerçevesi mavi olur ve kutular sürüklenip
+        /// başka bir kutunun üzerine bırakılarak yer değiştirebilir.
+        /// </summary>
+        private void StatisticEditMenuItem_Click()
         {
-            var window = new ReorderStatisticsWindow(_homeStatisticCards) { Owner = this };
-            var result = window.ShowDialog();
-
-            if (result == true)
-            {
-                LoadHomeStatistics();
-            }
-        }
-
-        /// <summary>"Düzenle": kutunun cins/özelliğini değiştirmek için AddStatisticWindow'u düzenleme modunda açar.</summary>
-        private void StatisticEditMenuItem_Click(HomeStatisticCard card)
-        {
-            var window = new AddStatisticWindow(card) { Owner = this };
-            var result = window.ShowDialog();
-
-            if (result == true)
-            {
-                LoadHomeStatistics();
-            }
+            _statisticsEditMode = !_statisticsEditMode;
+            LoadHomeStatistics();
         }
 
         /// <summary>"Sil": kutuyu kaldırır. Karttaki "x" düğmesiyle aynı işi yapar.</summary>
         private void StatisticDeleteMenuItem_Click(HomeStatisticCard card)
         {
             HomeStatisticsRepository.Remove(card.Id);
-            LoadHomeStatistics();
-        }
-
-        private void StatisticDeleteButton_Click(object sender, RoutedEventArgs e)
-        {
-            var id = (int)((Button)sender).Tag;
-            HomeStatisticsRepository.Remove(id);
             LoadHomeStatistics();
         }
 
@@ -186,12 +223,34 @@ namespace DEPO_DURUMU
 
         private void StatisticCard_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
+            if (!_statisticsEditMode)
+            {
+                return;
+            }
+
             _dragStartPoint = e.GetPosition(null);
+
+            // Basılı tutulan kutunun çerçevesi hemen renk değiştirsin.
+            var border = sender as Border;
+            if (border != null)
+            {
+                border.BorderBrush = StatisticCardHeldBrush;
+            }
+        }
+
+        private void StatisticCard_PreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            // Sürükleme başlamadan bırakılırsa çerçeveyi düzenleme modu rengine geri al.
+            var border = sender as Border;
+            if (border != null && _statisticsEditMode)
+            {
+                border.BorderBrush = StatisticCardEditModeBrush;
+            }
         }
 
         private void StatisticCard_MouseMove(object sender, MouseEventArgs e)
         {
-            if (e.LeftButton != MouseButtonState.Pressed)
+            if (!_statisticsEditMode || e.LeftButton != MouseButtonState.Pressed)
             {
                 return;
             }
@@ -212,6 +271,10 @@ namespace DEPO_DURUMU
             }
 
             DragDrop.DoDragDrop(border, card, DragDropEffects.Move);
+
+            // Bırakma bir kutunun üzerine olmadıysa (LoadHomeStatistics çağrılmadıysa)
+            // çerçeveyi düzenleme modu rengine geri al.
+            border.BorderBrush = StatisticCardEditModeBrush;
         }
 
         /// <summary>
