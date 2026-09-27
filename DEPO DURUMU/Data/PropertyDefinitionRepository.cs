@@ -46,6 +46,66 @@ namespace DEPO_DURUMU.Data
             return list;
         }
 
+        /// <summary>
+        /// Verilen Id'ye sahip özelliği getirir, yoksa null döner.
+        /// </summary>
+        public static PropertyDefinition GetById(int id)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "SELECT Id, Name, DataType, IsSerialNumber FROM PropertyDefinitions WHERE Id = @id;";
+                command.Parameters.Add(new SQLiteParameter("@id", id));
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new PropertyDefinition
+                        {
+                            Id = reader.GetInt32(0),
+                            Name = reader.GetString(1),
+                            DataType = reader.GetString(2),
+                            IsSerialNumber = reader.GetInt32(3) == 1
+                        };
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Verilen isme sahip özelliği getirir, yoksa null döner.
+        /// </summary>
+        public static PropertyDefinition GetByName(string name)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "SELECT Id, Name, DataType, IsSerialNumber FROM PropertyDefinitions WHERE Name = @name;";
+                command.Parameters.Add(new SQLiteParameter("@name", name));
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new PropertyDefinition
+                        {
+                            Id = reader.GetInt32(0),
+                            Name = reader.GetString(1),
+                            DataType = reader.GetString(2),
+                            IsSerialNumber = reader.GetInt32(3) == 1
+                        };
+                    }
+                }
+            }
+
+            return null;
+        }
+
         public static int Add(string name, string dataType, bool isSerialNumber)
         {
             using (var connection = Database.OpenConnection())

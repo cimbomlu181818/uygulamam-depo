@@ -39,6 +39,52 @@ namespace DEPO_DURUMU.Data
             return list;
         }
 
+        /// <summary>
+        /// Verilen Id'ye sahip ürün cinsini getirir, yoksa null döner.
+        /// </summary>
+        public static ProductType GetById(int id)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT Id, Name FROM ProductTypes WHERE Id = @id;";
+                command.Parameters.Add(new SQLiteParameter("@id", id));
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new ProductType { Id = reader.GetInt32(0), Name = reader.GetString(1) };
+                    }
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Verilen isme sahip ürün cinsini getirir, yoksa null döner.
+        /// </summary>
+        public static ProductType GetByName(string name)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT Id, Name FROM ProductTypes WHERE Name = @name;";
+                command.Parameters.Add(new SQLiteParameter("@name", name));
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        return new ProductType { Id = reader.GetInt32(0), Name = reader.GetString(1) };
+                    }
+                }
+            }
+
+            return null;
+        }
+
         public static int Add(string name)
         {
             using (var connection = Database.OpenConnection())

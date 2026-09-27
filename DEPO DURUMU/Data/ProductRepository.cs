@@ -7,6 +7,7 @@ namespace DEPO_DURUMU.Data
     {
         public int Id { get; set; }
         public int ProductTypeId { get; set; }
+        public int SortOrder { get; set; }
         public string CreatedAt { get; set; }
     }
 
@@ -27,8 +28,8 @@ namespace DEPO_DURUMU.Data
             using (var command = connection.CreateCommand())
             {
                 command.CommandText =
-                    "SELECT Id, ProductTypeId, CreatedAt FROM Products " +
-                    "WHERE ProductTypeId = @typeId ORDER BY Id;";
+                    "SELECT Id, ProductTypeId, SortOrder, CreatedAt FROM Products " +
+                    "WHERE ProductTypeId = @typeId ORDER BY SortOrder, Id;";
                 command.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
 
                 using (var reader = command.ExecuteReader())
@@ -39,7 +40,8 @@ namespace DEPO_DURUMU.Data
                         {
                             Id = reader.GetInt32(0),
                             ProductTypeId = reader.GetInt32(1),
-                            CreatedAt = reader.GetString(2)
+                            SortOrder = reader.GetInt32(2),
+                            CreatedAt = reader.GetString(3)
                         });
                     }
                 }
@@ -54,17 +56,101 @@ namespace DEPO_DURUMU.Data
         public static int Add(int productTypeId)
         {
             using (var connection = Database.OpenConnection())
-            using (var command = connection.CreateCommand())
             {
-                command.CommandText =
-                    "INSERT INTO Products (ProductTypeId, CreatedAt) " +
-                    "VALUES (@typeId, @createdAt); SELECT last_insert_rowid();";
-                command.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
-                command.Parameters.Add(new SQLiteParameter("@createdAt",
-                    System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
+                int nextOrder;
+                using (var orderCommand = connection.CreateCommand())
+                {
+                    orderCommand.CommandText =
+                        "SELECT COALESCE(MAX(SortOrder), 0) + 1 FROM Products WHERE ProductTypeId = @typeId;";
+                    orderCommand.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
+                    nextOrder = System.Convert.ToInt32(orderCommand.ExecuteScalar());
+                }
 
-                var result = command.ExecuteScalar();
-                return System.Convert.ToInt32(result);
+                using (var insertCommand = connection.CreateCommand())
+                {
+                    insertCommand.CommandText =
+                        "INSERT INTO Products (ProductTypeId, SortOrder, CreatedAt) " +
+                        "VALUES (@typeId, @order, @createdAt); SELECT last_insert_rowid();";
+                    insertCommand.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
+                    insertCommand.Parameters.Add(new SQLiteParameter("@order", nextOrder));
+                    insertCommand.Parameters.Add(new SQLiteParameter("@createdAt",
+                        System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
+
+                    var result = insertCommand.ExecuteScalar();
+                    return System.Convert.ToInt32(result);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Bir ürünün, kendi cinsindeki ürünler arasında kaçıncı sırada olduğunu
+        /// (1'den başlayarak) bulur. Hurdaya taşırken "eski yerini" hatırlamak için kullanılır.
+        /// </summary>
+        public static int GetRank(int productId, int productTypeId)
+        {
+            var ordered = GetForType(productTypeId);
+            for (var i = 0; i < ordered.Count; i++)
+            {
+                if (ordered[i].Id == productId)
+                {
+                    return i + 1;
+                }
+            }
+
+            return ordered.Count + 1;
+        }
+
+        /// <summary>
+        /// Bir ürünü, kendi cinsindeki listede istenen sıraya (1'den başlayarak) yerleştirir.
+        /// İstenen sıra listenin uzunluğunu aşıyorsa, en sona eklenir. Aradaki ürünlerin
+        /// sırası buna göre otomatik kayar. Hurdadan geri getirilen bir ürünü eski
+        /// yerine koymak için kullanılır.
+        /// </summary>
+        public static void SetPosition(int productId, int productTypeId, int desiredPosition)
+        {
+            using (var connection = Database.OpenConnection())
+            {
+                var orderedIds = new List<int>();
+
+                using (var selectCommand = connection.CreateCommand())
+                {
+                    selectCommand.CommandText =
+                        "SELECT Id FROM Products WHERE ProductTypeId = @typeId AND Id != @productId " +
+                        "ORDER BY SortOrder, Id;";
+                    selectCommand.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
+                    selectCommand.Parameters.Add(new SQLiteParameter("@productId", productId));
+
+                    using (var reader = selectCommand.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            orderedIds.Add(reader.GetInt32(0));
+                        }
+                    }
+                }
+
+                var insertIndex = desiredPosition - 1;
+                if (insertIndex < 0)
+                {
+                    insertIndex = 0;
+                }
+                if (insertIndex > orderedIds.Count)
+                {
+                    insertIndex = orderedIds.Count;
+                }
+
+                orderedIds.Insert(insertIndex, productId);
+
+                for (var i = 0; i < orderedIds.Count; i++)
+                {
+                    using (var updateCommand = connection.CreateCommand())
+                    {
+                        updateCommand.CommandText = "UPDATE Products SET SortOrder = @order WHERE Id = @id;";
+                        updateCommand.Parameters.Add(new SQLiteParameter("@order", i + 1));
+                        updateCommand.Parameters.Add(new SQLiteParameter("@id", orderedIds[i]));
+                        updateCommand.ExecuteNonQuery();
+                    }
+                }
             }
         }
 

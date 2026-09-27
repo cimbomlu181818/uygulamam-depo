@@ -74,6 +74,19 @@ namespace DEPO_DURUMU.Data
         }
 
         /// <summary>
+        /// Bir özelliği bir ürün cinsine bağlar, ancak zaten bağlıysa tekrar eklemez
+        /// (hata vermez). Hurdadan geri getirirken güvenle kullanılır.
+        /// </summary>
+        public static void AddPropertyToTypeIfMissing(int productTypeId, int propertyId)
+        {
+            var alreadyAttached = GetForType(productTypeId).Exists(p => p.Id == propertyId);
+            if (!alreadyAttached)
+            {
+                AddPropertyToType(productTypeId, propertyId);
+            }
+        }
+
+        /// <summary>
         /// Bir özelliğin bir ürün cinsiyle bağlantısını kaldırır (özelliğin
         /// kendisini kütüphaneden silmez, sadece bu cinsten kaldırır).
         /// </summary>

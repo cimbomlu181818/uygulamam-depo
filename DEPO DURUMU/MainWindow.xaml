@@ -13,6 +13,7 @@
             <MenuItem Header="Ana Sayfa" Click="HomeMenu_Click" />
             <MenuItem Header="Ayarlar" Click="SettingsMenu_Click" />
             <MenuItem Header="Log" Click="LogMenu_Click" />
+            <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
         </Menu>
 
         <!-- MENÜNÜN ALTINDAKİ ALAN: iki sayfa üst üste durur, biri görünür -->
@@ -222,6 +223,11 @@
                                 Height="30"
                                 Margin="0,0,6,0"
                                 Click="SelectAllButton_Click" />
+                        <Button Content="Hurdaya Taşı"
+                                Width="120"
+                                Height="30"
+                                Margin="0,0,6,0"
+                                Click="MoveSelectedToScrapButton_Click" />
                         <Button Content="Seçilenleri Sil"
                                 Width="130"
                                 Height="30"
@@ -229,7 +235,7 @@
                     </StackPanel>
 
                     <TextBlock DockPanel.Dock="Bottom"
-                               Text="Bir ürünün detayını görmek/düzenlemek/silmek için satıra çift tıklayın. Toplu silmek için kutucukları işaretleyin."
+                               Text="Bir ürünün detayını görmek/düzenlemek/silmek için satıra çift tıklayın. Toplu işlem için kutucukları işaretleyin (Sil = kalıcı siler, Hurdaya Taşı = hurdada saklar, geri getirilebilir)."
                                Foreground="Gray"
                                TextWrapping="Wrap"
                                Margin="0,6,0,0" />

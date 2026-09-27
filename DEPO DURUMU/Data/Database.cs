@@ -49,7 +49,87 @@ namespace DEPO_DURUMU.Data
                 command.ExecuteNonQuery();
             }
 
+            EnsureProductsSortOrderColumn();
             PropertyDefinitionRepository.EnsureDefaults();
+        }
+
+        /// <summary>
+        /// Products tablosuna, daha önce oluşturulmuş eski veritabanlarında eksik
+        /// olabilecek "SortOrder" (sıra) sütununu ekler ve mevcut ürünlere,
+        /// şu anki sıralarına göre bir başlangıç değeri atar. Sütun zaten varsa
+        /// hiçbir şey yapmaz.
+        /// </summary>
+        private static void EnsureProductsSortOrderColumn()
+        {
+            using (var connection = OpenConnection())
+            {
+                var hasColumn = false;
+
+                using (var checkCommand = connection.CreateCommand())
+                {
+                    checkCommand.CommandText = "PRAGMA table_info(Products);";
+                    using (var reader = checkCommand.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            if (string.Equals(reader["name"].ToString(), "SortOrder", StringComparison.OrdinalIgnoreCase))
+                            {
+                                hasColumn = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (hasColumn)
+                {
+                    return;
+                }
+
+                using (var alterCommand = connection.CreateCommand())
+                {
+                    alterCommand.CommandText = "ALTER TABLE Products ADD COLUMN SortOrder INTEGER NOT NULL DEFAULT 0;";
+                    alterCommand.ExecuteNonQuery();
+                }
+
+                // Mevcut ürünlere, o anki (Id'ye göre) sıralarını başlangıç sırası olarak ata.
+                using (var selectCommand = connection.CreateCommand())
+                {
+                    selectCommand.CommandText =
+                        "SELECT Id, ProductTypeId FROM Products ORDER BY ProductTypeId, Id;";
+
+                    var updates = new System.Collections.Generic.List<System.Tuple<int, int>>();
+                    var counters = new System.Collections.Generic.Dictionary<int, int>();
+
+                    using (var reader = selectCommand.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            var productId = reader.GetInt32(0);
+                            var typeId = reader.GetInt32(1);
+
+                            if (!counters.ContainsKey(typeId))
+                            {
+                                counters[typeId] = 0;
+                            }
+                            counters[typeId]++;
+
+                            updates.Add(System.Tuple.Create(productId, counters[typeId]));
+                        }
+                    }
+
+                    foreach (var update in updates)
+                    {
+                        using (var updateCommand = connection.CreateCommand())
+                        {
+                            updateCommand.CommandText = "UPDATE Products SET SortOrder = @order WHERE Id = @id;";
+                            updateCommand.Parameters.Add(new SQLiteParameter("@order", update.Item2));
+                            updateCommand.Parameters.Add(new SQLiteParameter("@id", update.Item1));
+                            updateCommand.ExecuteNonQuery();
+                        }
+                    }
+                }
+            }
         }
 
         private const string CreateTablesSql = @"
@@ -76,6 +156,7 @@ CREATE TABLE IF NOT EXISTS TypeProperties (
 CREATE TABLE IF NOT EXISTS Products (
     Id             INTEGER PRIMARY KEY AUTOINCREMENT,
     ProductTypeId  INTEGER NOT NULL REFERENCES ProductTypes(Id),
+    SortOrder      INTEGER NOT NULL DEFAULT 0,
     CreatedAt      TEXT    NOT NULL
 );
 
@@ -101,6 +182,29 @@ CREATE TABLE IF NOT EXISTS ActionLogs (
     TypeName     TEXT,
     Description  TEXT    NOT NULL,
     ActionType   TEXT    NOT NULL
+);
+
+-- Hurda: gerçek depodan bağımsız, donmuş ürün kayıtları.
+-- TypeId/PropertyId burada BİLİNÇLİ olarak veritabanı ilişkisi (foreign key)
+-- OLARAK TANIMLANMADI: gerçek depoda o cins/özellik silinebilsin diye,
+-- hurdadaki kayıtlar bundan hiç etkilenmemeli. TypeId/PropertyId sadece
+-- ""hâlâ orada duruyor mu"" diye kontrol etmek için saklanan referanslardır.
+CREATE TABLE IF NOT EXISTS ScrapProducts (
+    Id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+    TypeId             INTEGER,
+    TypeName           TEXT    NOT NULL,
+    OriginalSortOrder  INTEGER NOT NULL DEFAULT 0,
+    ScrappedAt         TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ScrapProductValues (
+    Id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    ScrapProductId   INTEGER NOT NULL REFERENCES ScrapProducts(Id),
+    PropertyId       INTEGER,
+    PropertyName     TEXT    NOT NULL,
+    DataType         TEXT    NOT NULL,
+    IsSerialNumber   INTEGER NOT NULL DEFAULT 0,
+    TextValue        TEXT
 );
 ";
     }

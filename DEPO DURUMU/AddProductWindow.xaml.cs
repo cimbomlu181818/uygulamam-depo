@@ -75,6 +75,14 @@ namespace DEPO_DURUMU
                         "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
+
+                if (ScrapRepository.IsSerialNumberUsed(value))
+                {
+                    MessageBox.Show(
+                        "\"" + property.Name + "\" için girilen \"" + value + "\" değeri hurdadaki bir üründe kullanılıyor.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
             }
 
             var productId = ProductRepository.Add(_productTypeId);

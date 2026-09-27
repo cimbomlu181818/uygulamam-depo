@@ -568,6 +568,61 @@ namespace DEPO_DURUMU
             LoadProductGrid(_currentType);
         }
 
+        private void MoveSelectedToScrapButton_Click(object sender, RoutedEventArgs e)
+        {
+            var view = ProductGrid.ItemsSource as DataView;
+            if (view == null || _currentType == null)
+            {
+                return;
+            }
+
+            var toMove = new List<int>();
+
+            foreach (DataRowView rowView in view)
+            {
+                var isSelected = (bool)rowView[SelectedColumnName];
+                if (isSelected)
+                {
+                    toMove.Add((int)rowView[IdColumnName]);
+                }
+            }
+
+            if (toMove.Count == 0)
+            {
+                MessageBox.Show("Önce hurdaya taşımak istediğin ürünlerin kutucuğunu işaretle.", "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var result = MessageBox.Show(
+                "Seçili " + toMove.Count + " ürün hurdaya taşınacak, onaylıyor musun?\n\n" +
+                "Hurdaya taşınan ürünler depodan kaldırılır ama silinmez; Hurda ekranından istediğin zaman geri getirebilirsin.",
+                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (result != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            foreach (var productId in toMove)
+            {
+                ScrapRepository.MoveToScrap(productId, _currentType);
+            }
+
+            LoadProductGrid(_currentType);
+        }
+
+        private void ScrapMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new ScrapWindow { Owner = this };
+            window.ShowDialog();
+
+            if (_currentType != null && TypePage.Visibility == Visibility.Visible)
+            {
+                LoadProductGrid(_currentType);
+            }
+        }
+
         // ---------- FİLTRE BARI ----------
 
         /// <summary>
