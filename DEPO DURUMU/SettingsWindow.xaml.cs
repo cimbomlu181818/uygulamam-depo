@@ -1,4 +1,6 @@
-﻿using System.Windows;
+﻿using System.Globalization;
+using System.Linq;
+using System.Windows;
 using DEPO_DURUMU.Data;
 
 namespace DEPO_DURUMU
@@ -26,6 +28,32 @@ namespace DEPO_DURUMU
                 MessageBox.Show("Lütfen bir ürün cinsi adı yazın.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
+            }
+
+            var existingTypeNames = ProductTypeRepository.GetAll().Select(t => t.Name).ToList();
+            var turkish = new CultureInfo("tr-TR");
+
+            var typeExists = existingTypeNames.Any(n =>
+                string.Compare(n, name, turkish, CompareOptions.IgnoreCase) == 0);
+            if (typeExists)
+            {
+                MessageBox.Show("Bu ürün cinsi zaten var.", "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var closeType = SimilarityHelper.FindClosestMatch(name, existingTypeNames);
+            if (closeType != null)
+            {
+                var confirm = MessageBox.Show(
+                    "\"" + closeType + "\" mi demek istediniz?\n\n" +
+                    "Yine de \"" + name + "\" adında yeni bir ürün cinsi eklemek istiyor musunuz?",
+                    "Şunu mu demek istediniz?", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    return;
+                }
             }
 
             ProductTypeRepository.Add(name);
@@ -111,6 +139,32 @@ namespace DEPO_DURUMU
 
             var dataTypeItem = NewPropertyDataTypeCombo.SelectedItem as System.Windows.Controls.ComboBoxItem;
             var dataType = dataTypeItem != null ? dataTypeItem.Content.ToString() : "Metin";
+
+            var existingProperties = PropertyDefinitionRepository.GetAll();
+            var turkishCulture = new CultureInfo("tr-TR");
+
+            var propertyExists = existingProperties.Any(p =>
+                string.Compare(p.Name, name, turkishCulture, CompareOptions.IgnoreCase) == 0);
+            if (propertyExists)
+            {
+                MessageBox.Show("Bu özellik zaten var.", "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var closeProperty = SimilarityHelper.FindClosestMatch(name, existingProperties.Select(p => p.Name));
+            if (closeProperty != null)
+            {
+                var confirm = MessageBox.Show(
+                    "\"" + closeProperty + "\" mi demek istediniz?\n\n" +
+                    "Yine de \"" + name + "\" adında yeni bir özellik eklemek istiyor musunuz?",
+                    "Şunu mu demek istediniz?", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+                if (confirm != MessageBoxResult.Yes)
+                {
+                    return;
+                }
+            }
 
             PropertyDefinitionRepository.Add(name, dataType, false);
             LogRepository.Add(null, name + " (" + dataType + ")", "Özellik eklendi");

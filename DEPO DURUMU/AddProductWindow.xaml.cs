@@ -12,6 +12,7 @@ namespace DEPO_DURUMU
         private readonly string _typeName;
         private readonly List<PropertyDefinition> _properties;
         private readonly Dictionary<int, TextBox> _inputs = new Dictionary<int, TextBox>();
+        private TextBox _quantityBox;
 
         public AddProductWindow(int productTypeId, string typeName)
         {
@@ -30,6 +31,21 @@ namespace DEPO_DURUMU
         /// </summary>
         private void BuildForm()
         {
+            // Her ürünün bir adedi vardır; en üstte, varsayılan 1 olarak sorulur.
+            FieldsPanel.Children.Add(new TextBlock
+            {
+                Text = "Adet",
+                Margin = new Thickness(0, 8, 0, 2)
+            });
+
+            _quantityBox = new TextBox
+            {
+                Height = 26,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Text = "1"
+            };
+            FieldsPanel.Children.Add(_quantityBox);
+
             foreach (var property in _properties)
             {
                 var label = new TextBlock
@@ -53,6 +69,14 @@ namespace DEPO_DURUMU
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
+            int quantity;
+            if (!int.TryParse(_quantityBox.Text.Trim(), out quantity) || quantity < 1)
+            {
+                MessageBox.Show("Adet, 1 veya daha büyük bir tam sayı olmalı.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             // Seri No gibi tekil olması gereken özellikleri kaydetmeden önce kontrol et.
             foreach (var property in _properties)
             {
@@ -85,7 +109,7 @@ namespace DEPO_DURUMU
                 }
             }
 
-            var productId = ProductRepository.Add(_productTypeId);
+            var productId = ProductRepository.Add(_productTypeId, quantity);
 
             foreach (var property in _properties)
             {
@@ -93,7 +117,7 @@ namespace DEPO_DURUMU
                 ProductRepository.SetValue(productId, property.Id, value);
             }
 
-            LogRepository.Add(_typeName, BuildDescription(), "Eklendi");
+            LogRepository.Add(_typeName, BuildDescription(quantity), "Eklendi");
 
             DialogResult = true;
         }
@@ -102,7 +126,7 @@ namespace DEPO_DURUMU
         /// Log defterine yazılacak, o anki değerleri anlatan sabit metni oluşturur.
         /// Seri No doluysa öne alınır, ardından dolu ilk birkaç özellik eklenir.
         /// </summary>
-        private string BuildDescription()
+        private string BuildDescription(int quantity)
         {
             var parts = new List<string>();
 
@@ -133,6 +157,11 @@ namespace DEPO_DURUMU
                 {
                     parts.Add(property.Name + ": " + value);
                 }
+            }
+
+            if (quantity > 1)
+            {
+                parts.Add("Adet: " + quantity);
             }
 
             return string.Join(" | ", parts);

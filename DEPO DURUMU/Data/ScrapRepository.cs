@@ -12,6 +12,7 @@ namespace DEPO_DURUMU.Data
         public int? TypeId { get; set; }
         public string TypeName { get; set; }
         public int OriginalSortOrder { get; set; }
+        public int Quantity { get; set; }
         public string ScrappedAt { get; set; }
     }
 
@@ -22,6 +23,22 @@ namespace DEPO_DURUMU.Data
         public string DataType { get; set; }
         public bool IsSerialNumber { get; set; }
         public string TextValue { get; set; }
+    }
+
+    /// <summary>
+    /// Hurdadan geri getirirken, aynı Seri No'lu bir ürün depoda zaten duruyorsa
+    /// kullanıcının verebileceği karar.
+    /// </summary>
+    public enum RestoreConflictChoice
+    {
+        /// <summary>Geri getirmeden vazgeç.</summary>
+        Cancel,
+
+        /// <summary>Depodaki ürünün bilgilerini ve adedini hurdadaki kayıtla değiştir.</summary>
+        Overwrite,
+
+        /// <summary>Ayrı, yeni bir ürün olarak getir (çakışan Seri No boş gelir).</summary>
+        SeparateProduct
     }
 
     /// <summary>
@@ -46,13 +63,28 @@ namespace DEPO_DURUMU.Data
     {
         public const string SearchIdColumn = "__ScrapId";
         public const string SearchStatusColumn = "__Status";
+        public const string SearchQuantityColumn = "__Adet";
+
+        /// <summary>Restore, kullanıcı çakışma sorusunda vazgeçerse bu metni döner (hata sayılmaz).</summary>
+        public const string RestoreCancelled = "__RestoreCancelled";
 
         /// <summary>
-        /// Bir ürünü hurdaya taşır: önce tüm bilgisini donmuş bir kopya olarak
-        /// buraya yazar, sonra gerçek depodan (Products/ProductValues) tamamen siler.
+        /// Bir ürünü (ya da adedinin bir kısmını) hurdaya taşır: önce o anki tüm bilgisini
+        /// donmuş bir kopya olarak buraya yazar. Ürünün tamamı taşınıyorsa gerçek depodan
+        /// tamamen silinir; sadece bir kısmı taşınıyorsa ürün depoda kalır ve adedi düşer.
+        /// quantity verilmezse (ya da ürünün adedinden büyükse) ürünün tamamı taşınır.
         /// </summary>
-        public static void MoveToScrap(int productId, ProductType type)
+        public static void MoveToScrap(int productId, ProductType type, int quantity = 0)
         {
+            var currentQuantity = ProductRepository.GetQuantity(productId);
+            if (currentQuantity < 1)
+            {
+                currentQuantity = 1;
+            }
+
+            var moveQuantity = (quantity < 1 || quantity > currentQuantity) ? currentQuantity : quantity;
+            var isPartial = moveQuantity < currentQuantity;
+
             var rank = ProductRepository.GetRank(productId, type.Id);
             var properties = TypePropertyRepository.GetForType(type.Id);
             var values = ProductRepository.GetValues(productId);
@@ -65,11 +97,12 @@ namespace DEPO_DURUMU.Data
                 using (var insertCommand = connection.CreateCommand())
                 {
                     insertCommand.CommandText =
-                        "INSERT INTO ScrapProducts (TypeId, TypeName, OriginalSortOrder, ScrappedAt) " +
-                        "VALUES (@typeId, @typeName, @order, @scrappedAt); SELECT last_insert_rowid();";
+                        "INSERT INTO ScrapProducts (TypeId, TypeName, OriginalSortOrder, Quantity, ScrappedAt) " +
+                        "VALUES (@typeId, @typeName, @order, @quantity, @scrappedAt); SELECT last_insert_rowid();";
                     insertCommand.Parameters.Add(new SQLiteParameter("@typeId", type.Id));
                     insertCommand.Parameters.Add(new SQLiteParameter("@typeName", type.Name));
                     insertCommand.Parameters.Add(new SQLiteParameter("@order", rank));
+                    insertCommand.Parameters.Add(new SQLiteParameter("@quantity", moveQuantity));
                     insertCommand.Parameters.Add(new SQLiteParameter("@scrappedAt",
                         DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
 
@@ -98,10 +131,21 @@ namespace DEPO_DURUMU.Data
                 }
             }
 
-            // Donmuş kopya güvenle yazıldı; şimdi gerçek depodan tamamen kaldır.
-            ProductRepository.Delete(productId);
+            // Donmuş kopya güvenle yazıldı. Tamamı taşındıysa gerçek depodan tamamen kaldır,
+            // kısmen taşındıysa ürün depoda kalır, sadece adedi düşer.
+            if (isPartial)
+            {
+                ProductRepository.SetQuantity(productId, currentQuantity - moveQuantity);
+            }
+            else
+            {
+                ProductRepository.Delete(productId);
+            }
 
-            LogRepository.Add(type.Name, BuildDescription(GetValues(scrapProductIdForLog)), "Hurdaya taşındı");
+            LogRepository.Add(
+                type.Name,
+                BuildDescription(GetValues(scrapProductIdForLog), moveQuantity),
+                isPartial ? "Hurdaya taşındı (kısmi)" : "Hurdaya taşındı");
         }
 
         /// <summary>
@@ -115,7 +159,7 @@ namespace DEPO_DURUMU.Data
             using (var command = connection.CreateCommand())
             {
                 command.CommandText =
-                    "SELECT Id, TypeId, TypeName, OriginalSortOrder, ScrappedAt " +
+                    "SELECT Id, TypeId, TypeName, OriginalSortOrder, Quantity, ScrappedAt " +
                     "FROM ScrapProducts ORDER BY Id DESC;";
 
                 using (var reader = command.ExecuteReader())
@@ -128,7 +172,8 @@ namespace DEPO_DURUMU.Data
                             TypeId = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1),
                             TypeName = reader.GetString(2),
                             OriginalSortOrder = reader.GetInt32(3),
-                            ScrappedAt = reader.GetString(4)
+                            Quantity = reader.GetInt32(4),
+                            ScrappedAt = reader.GetString(5)
                         });
                     }
                 }
@@ -273,6 +318,7 @@ namespace DEPO_DURUMU.Data
                 {
                     table.Columns.Add(name, typeof(string));
                 }
+                table.Columns.Add(SearchQuantityColumn, typeof(string));
                 table.Columns.Add(SearchStatusColumn, typeof(string));
 
                 foreach (var item in typeGroup)
@@ -290,6 +336,7 @@ namespace DEPO_DURUMU.Data
                         var found = values.FirstOrDefault(v => v.PropertyName == name);
                         row[name] = found != null ? found.TextValue : "";
                     }
+                    row[SearchQuantityColumn] = item.Quantity.ToString();
                     row[SearchStatusColumn] = "Hurda";
                     table.Rows.Add(row);
                 }
@@ -323,25 +370,32 @@ namespace DEPO_DURUMU.Data
         /// <summary>
         /// Bir hurda kaydını gerçek depoya geri getirir.
         /// Cins/özellikler hâlâ (Id üzerinden) duruyorsa doğrudan onlar kullanılır;
-        /// siliniyorsa saklı isimle yeniden oluşturulur. Ürün eski sırasına
-        /// (mümkün değilse listenin sonuna) yerleştirilir.
-        /// Sonuç: başarılıysa null, başarısızsa kullanıcıya gösterilecek hata mesajı.
+        /// siliniyorsa saklı isimle yeniden oluşturulur. Ürün, hurdadaki adediyle ve eski
+        /// sırasına (mümkün değilse listenin sonuna) yerleştirilir.
+        /// Aynı Seri No'lu bir ürün depoda zaten duruyorsa karar kullanıcıya bırakılır:
+        /// onConflict verilmişse ona sorulur (eskinin üzerine yaz / ayrı ürün olarak getir /
+        /// vazgeç); verilmemişse geri getirme durdurulur.
+        /// Sonuç: başarılıysa null, vazgeçildiyse RestoreCancelled, başarısızsa kullanıcıya
+        /// gösterilecek hata mesajı.
         /// </summary>
-        public static string Restore(int scrapProductId)
+        public static string Restore(int scrapProductId, Func<string, RestoreConflictChoice> onConflict = null)
         {
             List<ScrapValue> scrapValuesForLog = null;
             string typeNameForLog = null;
+            var quantityForLog = 1;
+            var actionForLog = "Hurdadan geri getirildi";
 
             using (var connection = Database.OpenConnection())
             using (var command = connection.CreateCommand())
             {
                 command.CommandText =
-                    "SELECT TypeId, TypeName, OriginalSortOrder FROM ScrapProducts WHERE Id = @id;";
+                    "SELECT TypeId, TypeName, OriginalSortOrder, Quantity FROM ScrapProducts WHERE Id = @id;";
                 command.Parameters.Add(new SQLiteParameter("@id", scrapProductId));
 
                 int? storedTypeId = null;
                 string typeName = null;
                 var originalSortOrder = 1;
+                var scrapQuantity = 1;
 
                 using (var reader = command.ExecuteReader())
                 {
@@ -353,9 +407,63 @@ namespace DEPO_DURUMU.Data
                     storedTypeId = reader.IsDBNull(0) ? (int?)null : reader.GetInt32(0);
                     typeName = reader.GetString(1);
                     originalSortOrder = reader.GetInt32(2);
+                    scrapQuantity = reader.GetInt32(3);
                 }
 
-                // 1) Ürün cinsini bul: önce eski Id hâlâ geçerli mi bak, yoksa isme
+                var scrapValues = GetValues(scrapProductId);
+
+                // 1) Seri No çakışması var mı diye, hiçbir şeyi değiştirmeden önce kontrol et.
+                var conflictPropertyIds = new HashSet<int>();
+                var conflictTargets = new HashSet<int>();
+                string conflictText = null;
+
+                foreach (var scrapValue in scrapValues)
+                {
+                    if (!scrapValue.IsSerialNumber || string.IsNullOrEmpty(scrapValue.TextValue) ||
+                        !scrapValue.PropertyId.HasValue)
+                    {
+                        continue;
+                    }
+
+                    var existingId = ProductRepository.FindByValue(scrapValue.PropertyId.Value, scrapValue.TextValue);
+                    if (!existingId.HasValue)
+                    {
+                        continue;
+                    }
+
+                    conflictPropertyIds.Add(scrapValue.PropertyId.Value);
+                    conflictTargets.Add(existingId.Value);
+                    if (conflictText == null)
+                    {
+                        conflictText = scrapValue.PropertyName + ": " + scrapValue.TextValue;
+                    }
+                }
+
+                var conflictChoice = RestoreConflictChoice.SeparateProduct;
+                var hasConflict = conflictPropertyIds.Count > 0;
+
+                if (hasConflict)
+                {
+                    if (onConflict == null)
+                    {
+                        return "\"" + conflictText + "\" artık depoda başka bir üründe kullanılıyor. " +
+                               "Geri getirilemedi; önce o üründeki çakışmayı çözün.";
+                    }
+
+                    if (conflictTargets.Count > 1)
+                    {
+                        return "\"" + conflictText + "\" birden fazla depo ürünüyle çakışıyor. " +
+                               "Geri getirilemedi; önce çakışmaları çözün.";
+                    }
+
+                    conflictChoice = onConflict(conflictText);
+                    if (conflictChoice == RestoreConflictChoice.Cancel)
+                    {
+                        return RestoreCancelled;
+                    }
+                }
+
+                // 2) Ürün cinsini bul: önce eski Id hâlâ geçerli mi bak, yoksa isme
                 //    göre ara, o da yoksa aynı isimle yeniden oluştur.
                 ProductType type = null;
                 if (storedTypeId.HasValue)
@@ -372,69 +480,89 @@ namespace DEPO_DURUMU.Data
                     type = new ProductType { Id = newTypeId, Name = typeName };
                 }
 
-                var scrapValues = GetValues(scrapProductId);
                 scrapValuesForLog = scrapValues;
                 typeNameForLog = typeName;
+                quantityForLog = scrapQuantity;
 
-                // 2) Seri No çakışması var mı diye önceden kontrol et (hiçbir şeyi
-                //    değiştirmeden önce), varsa geri getirmeyi tamamen durdur.
-                foreach (var scrapValue in scrapValues)
+                if (hasConflict && conflictChoice == RestoreConflictChoice.Overwrite)
                 {
-                    if (!scrapValue.IsSerialNumber || string.IsNullOrEmpty(scrapValue.TextValue))
+                    // 3a) Depodaki ürünün üzerine yaz: bilgileri ve adedi hurdadaki gibi olur.
+                    var targetId = conflictTargets.First();
+
+                    if (!ProductRepository.GetForType(type.Id).Any(p => p.Id == targetId))
                     {
-                        continue;
+                        return "Çakışan ürün başka bir ürün cinsinde duruyor, üzerine yazılamaz. " +
+                               "İstersen \"ayrı ürün olarak getir\" seçeneğini kullan.";
                     }
 
-                    if (scrapValue.PropertyId.HasValue &&
-                        ProductRepository.IsValueUsedByAnotherProduct(
-                            scrapValue.PropertyId.Value, scrapValue.TextValue, -1))
-                    {
-                        return "\"" + scrapValue.TextValue + "\" Seri No'su artık depoda başka bir üründe " +
-                               "kullanılıyor. Geri getirilemedi; önce o üründeki çakışmayı çözün.";
-                    }
+                    WriteValues(type, targetId, scrapValues, null);
+                    ProductRepository.SetQuantity(targetId, scrapQuantity);
+                    actionForLog = "Hurdadan geri getirildi (depodaki ürünün üzerine yazıldı)";
                 }
-
-                // 3) Ürünü oluştur (listenin sonuna eklenir, sonra eski sırasına taşınır).
-                var newProductId = ProductRepository.Add(type.Id);
-                ProductRepository.SetPosition(newProductId, type.Id, originalSortOrder);
-
-                // 4) Her değeri, özelliği bulup/oluşturup gerçek depoya yaz.
-                foreach (var scrapValue in scrapValues)
+                else
                 {
-                    PropertyDefinition property = null;
-                    if (scrapValue.PropertyId.HasValue)
-                    {
-                        property = PropertyDefinitionRepository.GetById(scrapValue.PropertyId.Value);
-                    }
-                    if (property == null)
-                    {
-                        property = PropertyDefinitionRepository.GetByName(scrapValue.PropertyName);
-                    }
-                    if (property == null)
-                    {
-                        var newPropertyId = PropertyDefinitionRepository.Add(
-                            scrapValue.PropertyName, scrapValue.DataType, scrapValue.IsSerialNumber);
-                        property = new PropertyDefinition
-                        {
-                            Id = newPropertyId,
-                            Name = scrapValue.PropertyName,
-                            DataType = scrapValue.DataType,
-                            IsSerialNumber = scrapValue.IsSerialNumber
-                        };
-                    }
+                    // 3b) Yeni ürün oluştur (listenin sonuna eklenir, sonra eski sırasına taşınır).
+                    //     Ayrı ürün seçildiyse çakışan Seri No boş bırakılır (Seri No tekil kalsın).
+                    var newProductId = ProductRepository.Add(type.Id, scrapQuantity);
+                    ProductRepository.SetPosition(newProductId, type.Id, originalSortOrder);
 
-                    TypePropertyRepository.AddPropertyToTypeIfMissing(type.Id, property.Id);
-                    ProductRepository.SetValue(newProductId, property.Id, scrapValue.TextValue);
+                    WriteValues(type, newProductId, scrapValues, conflictPropertyIds);
+
+                    if (hasConflict)
+                    {
+                        actionForLog = "Hurdadan geri getirildi (ayrı ürün, Seri No boş)";
+                    }
                 }
             }
 
-            // 5) Hurdadan kaldır (artık gerçek depoda duruyor). Bu iç silme ayrıca loglanmaz.
-            var restoredDescription = BuildDescription(scrapValuesForLog);
+            // 4) Hurdadan kaldır (artık gerçek depoda duruyor). Bu iç silme ayrıca loglanmaz.
+            var restoredDescription = BuildDescription(scrapValuesForLog, quantityForLog);
             var restoredTypeName = typeNameForLog;
             DeleteRows(scrapProductId);
 
-            LogRepository.Add(restoredTypeName, restoredDescription, "Hurdadan geri getirildi");
+            LogRepository.Add(restoredTypeName, restoredDescription, actionForLog);
             return null;
+        }
+
+        /// <summary>
+        /// Hurdadaki değerleri gerçek depodaki bir ürüne yazar; özellik yoksa saklı isimle
+        /// oluşturur. blankPropertyIds içindeki özelliklerin değeri boş bırakılır.
+        /// </summary>
+        private static void WriteValues(
+            ProductType type, int productId, List<ScrapValue> scrapValues, HashSet<int> blankPropertyIds)
+        {
+            foreach (var scrapValue in scrapValues)
+            {
+                PropertyDefinition property = null;
+                if (scrapValue.PropertyId.HasValue)
+                {
+                    property = PropertyDefinitionRepository.GetById(scrapValue.PropertyId.Value);
+                }
+                if (property == null)
+                {
+                    property = PropertyDefinitionRepository.GetByName(scrapValue.PropertyName);
+                }
+                if (property == null)
+                {
+                    var newPropertyId = PropertyDefinitionRepository.Add(
+                        scrapValue.PropertyName, scrapValue.DataType, scrapValue.IsSerialNumber);
+                    property = new PropertyDefinition
+                    {
+                        Id = newPropertyId,
+                        Name = scrapValue.PropertyName,
+                        DataType = scrapValue.DataType,
+                        IsSerialNumber = scrapValue.IsSerialNumber
+                    };
+                }
+
+                TypePropertyRepository.AddPropertyToTypeIfMissing(type.Id, property.Id);
+
+                var blank = blankPropertyIds != null &&
+                            scrapValue.PropertyId.HasValue &&
+                            blankPropertyIds.Contains(scrapValue.PropertyId.Value);
+
+                ProductRepository.SetValue(productId, property.Id, blank ? "" : scrapValue.TextValue);
+            }
         }
 
         /// <summary>
@@ -443,7 +571,7 @@ namespace DEPO_DURUMU.Data
         public static void DeletePermanently(int scrapProductId)
         {
             var typeName = GetTypeName(scrapProductId);
-            var description = BuildDescription(GetValues(scrapProductId));
+            var description = BuildDescription(GetValues(scrapProductId), GetScrapQuantity(scrapProductId));
 
             DeleteRows(scrapProductId);
 
@@ -464,6 +592,18 @@ namespace DEPO_DURUMU.Data
             }
         }
 
+        private static int GetScrapQuantity(int scrapProductId)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT Quantity FROM ScrapProducts WHERE Id = @id;";
+                command.Parameters.Add(new SQLiteParameter("@id", scrapProductId));
+                var result = command.ExecuteScalar();
+                return result == null || result == DBNull.Value ? 1 : Convert.ToInt32(result);
+            }
+        }
+
         private static string GetTypeName(int scrapProductId)
         {
             using (var connection = Database.OpenConnection())
@@ -480,7 +620,7 @@ namespace DEPO_DURUMU.Data
         /// Log defterine yazılacak, o anki değerleri anlatan sabit metni oluşturur:
         /// Seri No doluysa öne alınır, ardından dolu ilk birkaç özellik eklenir.
         /// </summary>
-        private static string BuildDescription(List<ScrapValue> values)
+        private static string BuildDescription(List<ScrapValue> values, int quantity)
         {
             var parts = new List<string>();
 
@@ -502,6 +642,11 @@ namespace DEPO_DURUMU.Data
                 }
 
                 parts.Add(v.PropertyName + ": " + v.TextValue);
+            }
+
+            if (quantity > 1)
+            {
+                parts.Add("Adet: " + quantity);
             }
 
             return string.Join(" | ", parts);

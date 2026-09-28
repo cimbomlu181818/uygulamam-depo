@@ -74,6 +74,7 @@
     <Compile Include="Data\ProductRepository.cs" />
     <Compile Include="Data\ProductSearchRepository.cs" />
     <Compile Include="Data\ScrapRepository.cs" />
+    <Compile Include="Data\SimilarityHelper.cs" />
     <Compile Include="LogWindow.xaml.cs">
       <DependentUpon>LogWindow.xaml</DependentUpon>
     </Compile>

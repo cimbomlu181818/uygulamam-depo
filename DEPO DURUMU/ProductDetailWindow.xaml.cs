@@ -12,6 +12,7 @@ namespace DEPO_DURUMU
         private readonly int _productId;
         private readonly List<PropertyDefinition> _properties;
         private readonly Dictionary<int, TextBox> _editInputs = new Dictionary<int, TextBox>();
+        private TextBox _quantityInput;
 
         /// <summary>
         /// Pencerede bir şey değiştiyse (düzenlendi ya da silindi) true olur.
@@ -40,6 +41,17 @@ namespace DEPO_DURUMU
             _editInputs.Clear();
 
             var values = ProductRepository.GetValues(_productId);
+
+            FieldsPanel.Children.Add(new TextBlock
+            {
+                Text = "Adet",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 8, 0, 2)
+            });
+            FieldsPanel.Children.Add(new TextBlock
+            {
+                Text = ProductRepository.GetQuantity(_productId).ToString()
+            });
 
             foreach (var property in _properties)
             {
@@ -74,6 +86,21 @@ namespace DEPO_DURUMU
 
             var values = ProductRepository.GetValues(_productId);
 
+            FieldsPanel.Children.Add(new TextBlock
+            {
+                Text = "Adet",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 8, 0, 2)
+            });
+
+            _quantityInput = new TextBox
+            {
+                Height = 26,
+                VerticalContentAlignment = VerticalAlignment.Center,
+                Text = ProductRepository.GetQuantity(_productId).ToString()
+            };
+            FieldsPanel.Children.Add(_quantityInput);
+
             foreach (var property in _properties)
             {
                 var label = new TextBlock
@@ -107,6 +134,14 @@ namespace DEPO_DURUMU
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
+            int newQuantity;
+            if (!int.TryParse(_quantityInput.Text.Trim(), out newQuantity) || newQuantity < 1)
+            {
+                MessageBox.Show("Adet, 1 veya daha büyük bir tam sayı olmalı.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             // Seri No gibi tekil olması gereken özellikleri kaydetmeden önce kontrol et.
             foreach (var property in _properties)
             {
@@ -140,6 +175,7 @@ namespace DEPO_DURUMU
             }
 
             var oldValues = ProductRepository.GetValues(_productId);
+            var oldQuantity = ProductRepository.GetQuantity(_productId);
 
             foreach (var property in _properties)
             {
@@ -147,8 +183,18 @@ namespace DEPO_DURUMU
                 ProductRepository.SetValue(_productId, property.Id, value);
             }
 
+            ProductRepository.SetQuantity(_productId, newQuantity);
+
             var newValues = ProductRepository.GetValues(_productId);
             var changeDescription = BuildChangeDescription(oldValues, newValues);
+
+            if (oldQuantity != newQuantity)
+            {
+                var quantityChange = "Adet: " + oldQuantity + " -> " + newQuantity;
+                changeDescription = string.IsNullOrEmpty(changeDescription)
+                    ? quantityChange
+                    : changeDescription + " | " + quantityChange;
+            }
 
             if (!string.IsNullOrEmpty(changeDescription))
             {
@@ -198,7 +244,8 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var descriptionBeforeDelete = BuildDescription(ProductRepository.GetValues(_productId));
+            var descriptionBeforeDelete = BuildDescription(
+                ProductRepository.GetValues(_productId), ProductRepository.GetQuantity(_productId));
 
             ProductRepository.Delete(_productId);
             LogRepository.Add(_type.Name, descriptionBeforeDelete, "Silindi");
@@ -211,7 +258,7 @@ namespace DEPO_DURUMU
         /// Log defterine yazılacak, o anki değerleri anlatan sabit metni oluşturur.
         /// Seri No doluysa öne alınır, ardından dolu ilk birkaç özellik eklenir.
         /// </summary>
-        private string BuildDescription(Dictionary<int, string> values)
+        private string BuildDescription(Dictionary<int, string> values, int quantity)
         {
             var parts = new List<string>();
 
@@ -237,6 +284,11 @@ namespace DEPO_DURUMU
                 {
                     parts.Add(property.Name + ": " + values[property.Id]);
                 }
+            }
+
+            if (quantity > 1)
+            {
+                parts.Add("Adet: " + quantity);
             }
 
             return string.Join(" | ", parts);

@@ -24,6 +24,7 @@ namespace DEPO_DURUMU.Data
     public static class ProductSearchRepository
     {
         public const string ProductIdColumn = "__ProductId";
+        public const string QuantityColumn = "__Adet";
 
         public static List<HomeSearchGroup> Search(string text)
         {
@@ -78,6 +79,7 @@ namespace DEPO_DURUMU.Data
                 {
                     table.Columns.Add(property.Name, typeof(string));
                 }
+                table.Columns.Add(QuantityColumn, typeof(string));
 
                 foreach (var match in typeGroup)
                 {
@@ -89,6 +91,7 @@ namespace DEPO_DURUMU.Data
                     {
                         row[property.Name] = values.ContainsKey(property.Id) ? values[property.Id] : "";
                     }
+                    row[QuantityColumn] = ProductRepository.GetQuantity(match.Key).ToString();
                     table.Rows.Add(row);
                 }
 

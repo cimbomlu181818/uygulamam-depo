@@ -50,6 +50,7 @@ namespace DEPO_DURUMU.Data
             }
 
             EnsureProductsSortOrderColumn();
+            EnsureQuantityColumns();
             PropertyDefinitionRepository.EnsureDefaults();
         }
 
@@ -132,6 +133,52 @@ namespace DEPO_DURUMU.Data
             }
         }
 
+        /// <summary>
+        /// Products ve ScrapProducts tablolarına, eski veritabanlarında eksik olabilecek
+        /// "Quantity" (adet) sütununu ekler. Mevcut tüm kayıtlar 1 adet sayılır.
+        /// Sütun zaten varsa hiçbir şey yapmaz.
+        /// </summary>
+        private static void EnsureQuantityColumns()
+        {
+            using (var connection = OpenConnection())
+            {
+                foreach (var table in new[] { "Products", "ScrapProducts" })
+                {
+                    if (ColumnExists(connection, table, "Quantity"))
+                    {
+                        continue;
+                    }
+
+                    using (var alterCommand = connection.CreateCommand())
+                    {
+                        alterCommand.CommandText =
+                            "ALTER TABLE " + table + " ADD COLUMN Quantity INTEGER NOT NULL DEFAULT 1;";
+                        alterCommand.ExecuteNonQuery();
+                    }
+                }
+            }
+        }
+
+        private static bool ColumnExists(SQLiteConnection connection, string table, string column)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "PRAGMA table_info(" + table + ");";
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        if (string.Equals(reader["name"].ToString(), column, StringComparison.OrdinalIgnoreCase))
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
         private const string CreateTablesSql = @"
 CREATE TABLE IF NOT EXISTS ProductTypes (
     Id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,6 +204,7 @@ CREATE TABLE IF NOT EXISTS Products (
     Id             INTEGER PRIMARY KEY AUTOINCREMENT,
     ProductTypeId  INTEGER NOT NULL REFERENCES ProductTypes(Id),
     SortOrder      INTEGER NOT NULL DEFAULT 0,
+    Quantity       INTEGER NOT NULL DEFAULT 1,
     CreatedAt      TEXT    NOT NULL
 );
 
@@ -194,6 +242,7 @@ CREATE TABLE IF NOT EXISTS ScrapProducts (
     TypeId             INTEGER,
     TypeName           TEXT    NOT NULL,
     OriginalSortOrder  INTEGER NOT NULL DEFAULT 0,
+    Quantity           INTEGER NOT NULL DEFAULT 1,
     ScrappedAt         TEXT    NOT NULL
 );
 

@@ -8,6 +8,7 @@ namespace DEPO_DURUMU.Data
         public int Id { get; set; }
         public int ProductTypeId { get; set; }
         public int SortOrder { get; set; }
+        public int Quantity { get; set; }
         public string CreatedAt { get; set; }
     }
 
@@ -28,7 +29,7 @@ namespace DEPO_DURUMU.Data
             using (var command = connection.CreateCommand())
             {
                 command.CommandText =
-                    "SELECT Id, ProductTypeId, SortOrder, CreatedAt FROM Products " +
+                    "SELECT Id, ProductTypeId, SortOrder, Quantity, CreatedAt FROM Products " +
                     "WHERE ProductTypeId = @typeId ORDER BY SortOrder, Id;";
                 command.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
 
@@ -41,7 +42,8 @@ namespace DEPO_DURUMU.Data
                             Id = reader.GetInt32(0),
                             ProductTypeId = reader.GetInt32(1),
                             SortOrder = reader.GetInt32(2),
-                            CreatedAt = reader.GetString(3)
+                            Quantity = reader.GetInt32(3),
+                            CreatedAt = reader.GetString(4)
                         });
                     }
                 }
@@ -53,7 +55,7 @@ namespace DEPO_DURUMU.Data
         /// <summary>
         /// Yeni bir ürün satırı oluşturur ve Id'sini döner.
         /// </summary>
-        public static int Add(int productTypeId)
+        public static int Add(int productTypeId, int quantity = 1)
         {
             using (var connection = Database.OpenConnection())
             {
@@ -69,16 +71,48 @@ namespace DEPO_DURUMU.Data
                 using (var insertCommand = connection.CreateCommand())
                 {
                     insertCommand.CommandText =
-                        "INSERT INTO Products (ProductTypeId, SortOrder, CreatedAt) " +
-                        "VALUES (@typeId, @order, @createdAt); SELECT last_insert_rowid();";
+                        "INSERT INTO Products (ProductTypeId, SortOrder, Quantity, CreatedAt) " +
+                        "VALUES (@typeId, @order, @quantity, @createdAt); SELECT last_insert_rowid();";
                     insertCommand.Parameters.Add(new SQLiteParameter("@typeId", productTypeId));
                     insertCommand.Parameters.Add(new SQLiteParameter("@order", nextOrder));
+                    insertCommand.Parameters.Add(new SQLiteParameter("@quantity", quantity < 1 ? 1 : quantity));
                     insertCommand.Parameters.Add(new SQLiteParameter("@createdAt",
                         System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
 
                     var result = insertCommand.ExecuteScalar();
                     return System.Convert.ToInt32(result);
                 }
+            }
+        }
+
+        /// <summary>
+        /// Bir ürünün adedini getirir. Ürün yoksa 0 döner.
+        /// </summary>
+        public static int GetQuantity(int productId)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT Quantity FROM Products WHERE Id = @id;";
+                command.Parameters.Add(new SQLiteParameter("@id", productId));
+
+                var result = command.ExecuteScalar();
+                return result == null || result == System.DBNull.Value ? 0 : System.Convert.ToInt32(result);
+            }
+        }
+
+        /// <summary>
+        /// Bir ürünün adedini değiştirir (en az 1).
+        /// </summary>
+        public static void SetQuantity(int productId, int quantity)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "UPDATE Products SET Quantity = @quantity WHERE Id = @id;";
+                command.Parameters.Add(new SQLiteParameter("@quantity", quantity < 1 ? 1 : quantity));
+                command.Parameters.Add(new SQLiteParameter("@id", productId));
+                command.ExecuteNonQuery();
             }
         }
 
@@ -219,6 +253,25 @@ namespace DEPO_DURUMU.Data
 
                 var count = System.Convert.ToInt32(command.ExecuteScalar());
                 return count > 0;
+            }
+        }
+
+        /// <summary>
+        /// Belirli bir özelliğin verilen değere sahip olduğu ilk ürünün Id'sini bulur (yoksa null).
+        /// </summary>
+        public static int? FindByValue(int propertyId, string value)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "SELECT ProductId FROM ProductValues " +
+                    "WHERE PropertyId = @propertyId AND TextValue = @value LIMIT 1;";
+                command.Parameters.Add(new SQLiteParameter("@propertyId", propertyId));
+                command.Parameters.Add(new SQLiteParameter("@value", value));
+
+                var result = command.ExecuteScalar();
+                return result == null || result == System.DBNull.Value ? (int?)null : System.Convert.ToInt32(result);
             }
         }
 

@@ -7,6 +7,7 @@ namespace DEPO_DURUMU
     public partial class ScrapDetailWindow : Window
     {
         private readonly int _scrapProductId;
+        private readonly int _quantity;
 
         /// <summary>
         /// Pencerede bir şey değiştiyse (geri getirildi ya da kalıcı silindi) true olur.
@@ -19,6 +20,7 @@ namespace DEPO_DURUMU
             InitializeComponent();
 
             _scrapProductId = item.Id;
+            _quantity = item.Quantity;
             TitleText.Text = item.TypeName + " - Hurda Ürün Detayı";
             SubtitleText.Text = "Hurdaya taşındı: " + item.ScrappedAt;
 
@@ -31,6 +33,14 @@ namespace DEPO_DURUMU
         private void BuildView()
         {
             FieldsPanel.Children.Clear();
+
+            FieldsPanel.Children.Add(new TextBlock
+            {
+                Text = "Adet",
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 8, 0, 2)
+            });
+            FieldsPanel.Children.Add(new TextBlock { Text = _quantity.ToString() });
 
             foreach (var value in ScrapRepository.GetValues(_scrapProductId))
             {
@@ -53,7 +63,14 @@ namespace DEPO_DURUMU
 
         private void RestoreButton_Click(object sender, RoutedEventArgs e)
         {
-            var error = ScrapRepository.Restore(_scrapProductId);
+            var error = ScrapRepository.Restore(
+                _scrapProductId, text => ScrapWindow.AskRestoreConflict(this, text));
+
+            if (error == ScrapRepository.RestoreCancelled)
+            {
+                return;
+            }
+
             if (error != null)
             {
                 MessageBox.Show(error, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);

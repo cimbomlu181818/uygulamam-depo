@@ -19,6 +19,7 @@ namespace DEPO_DURUMU
         private const string SelectedColumnName = "__Selected";
         private const string IdColumnName = "__ScrapId";
         private const string DateColumnName = "__Date";
+        private const string QuantityColumnName = "__Qty";
 
         private class TypeEntry
         {
@@ -188,6 +189,7 @@ namespace DEPO_DURUMU
             table.Columns.Add(SelectedColumnName, typeof(bool));
             table.Columns.Add(IdColumnName, typeof(int));
             table.Columns.Add(DateColumnName, typeof(string));
+            table.Columns.Add(QuantityColumnName, typeof(string));
 
             // Özellik adlarında özel karakter olabileceği için sütunlara güvenli
             // adlar (p0, p1...) veriyoruz; ekranda görünen başlık gerçek addır.
@@ -212,6 +214,7 @@ namespace DEPO_DURUMU
                 row[SelectedColumnName] = false;
                 row[IdColumnName] = item.Id;
                 row[DateColumnName] = item.ScrappedAt;
+                row[QuantityColumnName] = item.Quantity.ToString();
 
                 for (var i = 0; i < _propertyNames.Count; i++)
                 {
@@ -256,6 +259,14 @@ namespace DEPO_DURUMU
                 Header = "Sıra No",
                 Binding = new Binding(NoColumnName),
                 Width = new DataGridLength(70),
+                IsReadOnly = true
+            });
+
+            ProductGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Adet",
+                Binding = new Binding(QuantityColumnName),
+                Width = new DataGridLength(60),
                 IsReadOnly = true
             });
 
@@ -730,6 +741,32 @@ namespace DEPO_DURUMU
             return ids;
         }
 
+        /// <summary>
+        /// Hurdadan geri getirilen ürünün Seri No'su depoda zaten başka bir üründe duruyorsa,
+        /// kullanıcıya ne yapılacağını sorar.
+        /// </summary>
+        public static RestoreConflictChoice AskRestoreConflict(Window owner, string conflictText)
+        {
+            var result = MessageBox.Show(
+                "\"" + conflictText + "\" depoda zaten başka bir üründe duruyor.\n\n" +
+                "EVET: Depodaki ürünün üzerine yaz (bilgileri ve adedi hurdadaki gibi olur)\n" +
+                "HAYIR: Ayrı, yeni bir ürün olarak getir (bu Seri No boş gelir, sonra doldurabilirsin)\n" +
+                "İPTAL: Bu ürünü geri getirme",
+                "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                return RestoreConflictChoice.Overwrite;
+            }
+
+            if (result == MessageBoxResult.No)
+            {
+                return RestoreConflictChoice.SeparateProduct;
+            }
+
+            return RestoreConflictChoice.Cancel;
+        }
+
         private void RestoreSelectedButton_Click(object sender, RoutedEventArgs e)
         {
             var ids = GetSelectedIds();
@@ -754,12 +791,12 @@ namespace DEPO_DURUMU
 
             foreach (var id in ids)
             {
-                var error = ScrapRepository.Restore(id);
+                var error = ScrapRepository.Restore(id, text => AskRestoreConflict(this, text));
                 if (error == null)
                 {
                     restoredCount++;
                 }
-                else
+                else if (error != ScrapRepository.RestoreCancelled)
                 {
                     errors.Add(error);
                 }

@@ -20,6 +20,7 @@ namespace DEPO_DURUMU
         private const string NoColumnName = "__No";
         private const string SelectedColumnName = "__Selected";
         private const string IdColumnName = "__ProductId";
+        private const string QuantityColumnName = "__Quantity";
 
         private ProductType _currentType;
 
@@ -374,6 +375,7 @@ namespace DEPO_DURUMU
             table.Columns.Add(NoColumnName, typeof(int));
             table.Columns.Add(SelectedColumnName, typeof(bool));
             table.Columns.Add(IdColumnName, typeof(int));
+            table.Columns.Add(QuantityColumnName, typeof(int));
 
             foreach (var property in properties)
             {
@@ -397,6 +399,7 @@ namespace DEPO_DURUMU
                 row[NoColumnName] = rowNumber;
                 row[SelectedColumnName] = false;
                 row[IdColumnName] = product.Id;
+                row[QuantityColumnName] = product.Quantity;
 
                 foreach (var property in properties)
                 {
@@ -439,6 +442,14 @@ namespace DEPO_DURUMU
                 Header = "Sıra No",
                 Binding = new Binding(NoColumnName),
                 Width = new DataGridLength(70),
+                IsReadOnly = true
+            });
+
+            ProductGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Adet",
+                Binding = new Binding(QuantityColumnName),
+                Width = new DataGridLength(60),
                 IsReadOnly = true
             });
 
@@ -569,7 +580,8 @@ namespace DEPO_DURUMU
 
             foreach (var productId in toDelete)
             {
-                var description = BuildProductDescription(ProductRepository.GetValues(productId));
+                var description = BuildProductDescription(
+                    ProductRepository.GetValues(productId), ProductRepository.GetQuantity(productId));
 
                 ProductRepository.Delete(productId);
                 LogRepository.Add(_currentType.Name, description, "Silindi");
@@ -582,7 +594,7 @@ namespace DEPO_DURUMU
         /// Log defterine yazılacak, ürünün o anki değerlerini anlatan sabit metni oluşturur:
         /// Seri No doluysa öne alınır, ardından dolu ilk birkaç özellik eklenir.
         /// </summary>
-        private string BuildProductDescription(Dictionary<int, string> values)
+        private string BuildProductDescription(Dictionary<int, string> values, int quantity)
         {
             var parts = new List<string>();
 
@@ -610,6 +622,11 @@ namespace DEPO_DURUMU
                 {
                     parts.Add(property.Name + ": " + values[property.Id]);
                 }
+            }
+
+            if (quantity > 1)
+            {
+                parts.Add("Adet: " + quantity);
             }
 
             return string.Join(" | ", parts);
@@ -653,10 +670,52 @@ namespace DEPO_DURUMU
 
             foreach (var productId in toMove)
             {
-                ScrapRepository.MoveToScrap(productId, _currentType);
+                var moveQuantity = AskScrapQuantity(productId);
+                if (moveQuantity == 0)
+                {
+                    // Kullanıcı bu ürün için vazgeçti; diğerlerine devam edilir.
+                    continue;
+                }
+
+                ScrapRepository.MoveToScrap(productId, _currentType, moveQuantity);
             }
 
             LoadProductGrid(_currentType);
+        }
+
+        /// <summary>
+        /// Adedi 1'den fazla olan bir ürün hurdaya taşınırken kaç adedinin gideceğini sorar.
+        /// Adet 1 ise sormaz ve 1 döner. Kullanıcı vazgeçerse 0 döner.
+        /// </summary>
+        private int AskScrapQuantity(int productId)
+        {
+            var available = ProductRepository.GetQuantity(productId);
+            if (available <= 1)
+            {
+                return 1;
+            }
+
+            var description = BuildProductDescription(ProductRepository.GetValues(productId), 1);
+            var prompt = (string.IsNullOrEmpty(description) ? "Ürün" : description) +
+                         "\n\nBu üründen depoda " + available + " adet var. Kaç adedi hurdaya taşınsın?";
+
+            while (true)
+            {
+                var answer = SimpleInputWindow.Ask(this, "Hurdaya taşınacak adet", prompt, available.ToString());
+                if (answer == null)
+                {
+                    return 0;
+                }
+
+                int quantity;
+                if (int.TryParse(answer, out quantity) && quantity >= 1 && quantity <= available)
+                {
+                    return quantity;
+                }
+
+                MessageBox.Show("1 ile " + available + " arasında bir sayı yaz.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
         }
 
         private void ScrapMenu_Click(object sender, RoutedEventArgs e)
@@ -1132,6 +1191,12 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            if (e.PropertyName == ProductSearchRepository.QuantityColumn)
+            {
+                textColumn.Header = "Adet";
+                return;
+            }
+
             var style = new Style(typeof(TextBlock));
             var binding = new Binding(e.PropertyName)
             {
@@ -1250,6 +1315,12 @@ namespace DEPO_DURUMU
             }
 
             var style = new Style(typeof(TextBlock));
+
+            if (e.PropertyName == ScrapRepository.SearchQuantityColumn)
+            {
+                textColumn.Header = "Adet";
+                return;
+            }
 
             if (e.PropertyName == ScrapRepository.SearchStatusColumn)
             {
