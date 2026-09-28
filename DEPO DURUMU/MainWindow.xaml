@@ -14,6 +14,8 @@
             <MenuItem Header="Ayarlar" Click="SettingsMenu_Click" />
             <MenuItem Header="Log" Click="LogMenu_Click" />
             <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
+            <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />
+            <MenuItem Header="Tutanaklar" Click="HandoversMenu_Click" />
         </Menu>
 
         <!-- MENÜNÜN ALTINDAKİ ALAN: iki sayfa üst üste durur, biri görünür -->

@@ -255,6 +255,52 @@ CREATE TABLE IF NOT EXISTS ScrapProductValues (
     IsSerialNumber   INTEGER NOT NULL DEFAULT 0,
     TextValue        TEXT
 );
+
+-- Zimmetler defteri: ürün tablosundan bağımsız kayıt defteri.
+-- ProductId BİLİNÇLİ olarak veritabanı ilişkisi (foreign key) OLARAK TANIMLANMADI:
+-- ürün silinse ya da hurdaya gitse bile defterdeki kayıt bozulmasın diye TypeName,
+-- SystemName ve SerialNo kayda donmuş metin olarak yazılır.
+CREATE TABLE IF NOT EXISTS Assignments (
+    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductId     INTEGER,
+    TypeName      TEXT    NOT NULL,
+    SystemName    TEXT,
+    SerialNo      TEXT,
+    Quantity      INTEGER NOT NULL DEFAULT 1,
+    PersonName    TEXT    NOT NULL,
+    RegistryNo    TEXT,
+    Department    TEXT,
+    AssignedAt    TEXT    NOT NULL,
+    AssignedNote  TEXT,
+    IsReturned    INTEGER NOT NULL DEFAULT 0,
+    ReturnedAt    TEXT,
+    ReturnedNote  TEXT
+);
+
+CREATE INDEX IF NOT EXISTS IX_Assignments_Product
+    ON Assignments (ProductId, IsReturned);
+
+-- Tutanaklar defteri: teslim-tesellüm tutanakları. Ürünlere bağlı değildir;
+-- malzeme satırları yazıldığı gibi (saf metin) saklanır.
+CREATE TABLE IF NOT EXISTS Handovers (
+    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    FromUnit      TEXT    NOT NULL,
+    ToUnit        TEXT    NOT NULL,
+    Category      TEXT,
+    HandoverDate  TEXT    NOT NULL,
+    CreatedAt     TEXT    NOT NULL,
+    UpdatedAt     TEXT
+);
+
+CREATE TABLE IF NOT EXISTS HandoverItems (
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    HandoverId   INTEGER NOT NULL REFERENCES Handovers(Id),
+    SortOrder    INTEGER NOT NULL DEFAULT 0,
+    SerialNo     TEXT,
+    ItemType     TEXT,
+    Quantity     TEXT,
+    Note         TEXT
+);
 ";
     }
 }

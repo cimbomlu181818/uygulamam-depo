@@ -85,6 +85,15 @@ namespace DEPO_DURUMU.Data
             var moveQuantity = (quantity < 1 || quantity > currentQuantity) ? currentQuantity : quantity;
             var isPartial = moveQuantity < currentQuantity;
 
+            // Zimmetteki adetler hurdaya taşınamaz: geriye en az zimmetli miktar kalmalı.
+            var assignedQuantity = AssignmentRepository.GetActiveQuantity(productId);
+            if (assignedQuantity > 0 && currentQuantity - moveQuantity < assignedQuantity)
+            {
+                throw new InvalidOperationException(
+                    "Bu üründen " + assignedQuantity + " adet zimmette olduğu için en fazla " +
+                    (currentQuantity - assignedQuantity) + " adet hurdaya taşınabilir. Önce zimmeti iade alın.");
+            }
+
             var rank = ProductRepository.GetRank(productId, type.Id);
             var properties = TypePropertyRepository.GetForType(type.Id);
             var values = ProductRepository.GetValues(productId);

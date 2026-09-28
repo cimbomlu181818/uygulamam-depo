@@ -69,6 +69,21 @@
     <Compile Include="AssignPropertiesWindow.xaml.cs">
       <DependentUpon>AssignPropertiesWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="AssignWindow.xaml.cs">
+      <DependentUpon>AssignWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="AssignmentsWindow.xaml.cs">
+      <DependentUpon>AssignmentsWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="AssignmentEditWindow.xaml.cs">
+      <DependentUpon>AssignmentEditWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="HandoverWindow.xaml.cs">
+      <DependentUpon>HandoverWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="HandoversWindow.xaml.cs">
+      <DependentUpon>HandoversWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Data\HomeStatisticsRepository.cs" />
     <Compile Include="Data\LogRepository.cs" />
     <Compile Include="Data\ProductRepository.cs" />
@@ -105,6 +120,26 @@
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
+    <Page Include="AssignWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="AssignmentsWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="AssignmentEditWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="HandoverWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="HandoversWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
     <Page Include="LogWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
@@ -118,6 +153,9 @@
       <SubType>Code</SubType>
     </Compile>
     <Compile Include="Data\Database.cs" />
+    <Compile Include="Data\AssignmentRepository.cs" />
+    <Compile Include="Data\HandoverRepository.cs" />
+    <Compile Include="AssignmentReceiptPrinter.cs" />
     <Compile Include="Data\ProductTypeRepository.cs" />
     <Compile Include="Data\PropertyDefinitionRepository.cs" />
     <Compile Include="Data\TypePropertyRepository.cs" />

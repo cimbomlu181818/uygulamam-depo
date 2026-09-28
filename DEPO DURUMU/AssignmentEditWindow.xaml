@@ -1,0 +1,83 @@
+﻿<Window x:Class="DEPO_DURUMU.AssignmentEditWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Zimmet Kaydını Düzenle"
+        Height="640" Width="460"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel Margin="15">
+
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button Content="Kaydet"
+                    Width="90" Height="30"
+                    IsDefault="True"
+                    Click="SaveButton_Click" />
+            <Button Content="İptal"
+                    Width="90" Height="30"
+                    Margin="8,0,0,0"
+                    IsCancel="True" />
+        </StackPanel>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,0,8,0">
+
+                <TextBlock x:Name="InfoText"
+                           Foreground="Gray"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+
+                <TextBlock Text="Ürün tipi" Margin="0,0,0,3" />
+                <TextBox x:Name="TypeBox" Height="26" VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                <TextBlock Text="Sistem adı" Margin="0,0,0,3" />
+                <TextBox x:Name="SystemNameBox" Height="26" VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                <TextBlock Text="Seri No" Margin="0,0,0,3" />
+                <TextBox x:Name="SerialBox" Height="26" VerticalContentAlignment="Center" Margin="0,0,0,12" />
+
+                <TextBlock Text="Kişi adı soyadı *" Margin="0,0,0,3" />
+                <TextBox x:Name="PersonBox" Height="26" VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                <TextBlock Text="Sicil no" Margin="0,0,0,3" />
+                <TextBox x:Name="RegistryBox" Height="26" VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                <TextBlock Text="Birim" Margin="0,0,0,3" />
+                <TextBox x:Name="DepartmentBox" Height="26" VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                <TextBlock Text="Miktar" Margin="0,0,0,3" />
+                <TextBox x:Name="QuantityBox" Height="26" Width="80" HorizontalAlignment="Left"
+                         VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                <TextBlock Text="Zimmet tarihi (gg.aa.yyyy SS:dd) *" Margin="0,0,0,3" />
+                <TextBox x:Name="AssignedAtBox" Height="26" Width="160" HorizontalAlignment="Left"
+                         VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                <TextBlock Text="Not" Margin="0,0,0,3" />
+                <TextBox x:Name="NoteBox" Height="46" TextWrapping="Wrap" AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto" Margin="0,0,0,12" />
+
+                <CheckBox x:Name="ReturnedCheck"
+                          Content="İade edildi"
+                          FontWeight="SemiBold"
+                          Margin="0,0,0,8"
+                          Checked="ReturnedCheck_Changed"
+                          Unchecked="ReturnedCheck_Changed" />
+
+                <StackPanel x:Name="ReturnPanel" Visibility="Collapsed">
+                    <TextBlock Text="İade tarihi (gg.aa.yyyy SS:dd)" Margin="0,0,0,3" />
+                    <TextBox x:Name="ReturnedAtBox" Height="26" Width="160" HorizontalAlignment="Left"
+                             VerticalContentAlignment="Center" Margin="0,0,0,8" />
+
+                    <TextBlock Text="İade notu" Margin="0,0,0,3" />
+                    <TextBox x:Name="ReturnedNoteBox" Height="46" TextWrapping="Wrap" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" />
+                </StackPanel>
+
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

@@ -21,6 +21,7 @@ namespace DEPO_DURUMU
         private const string SelectedColumnName = "__Selected";
         private const string IdColumnName = "__ProductId";
         private const string QuantityColumnName = "__Quantity";
+        private const string ZimmetColumnName = "__Zimmet";
 
         private ProductType _currentType;
 
@@ -114,6 +115,29 @@ namespace DEPO_DURUMU
         {
             var window = new LogWindow { Owner = this };
             window.ShowDialog();
+        }
+
+        private void AssignmentsMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new AssignmentsWindow { Owner = this };
+            window.ShowDialog();
+
+            RefreshTypePageIfOpen();
+        }
+
+        private void HandoversMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new HandoversWindow { Owner = this };
+            window.ShowDialog();
+        }
+
+        /// <summary>Zimmet değişmiş olabilir; bir ürün cinsi sayfası açıksa tablodaki "Zimmet" sütunu tazelenir.</summary>
+        private void RefreshTypePageIfOpen()
+        {
+            if (_currentType != null && TypePage.Visibility == Visibility.Visible)
+            {
+                LoadProductGrid(_currentType);
+            }
         }
 
         // ---------- ANA SAYFA İSTATİSTİKLERİ ----------
@@ -376,6 +400,7 @@ namespace DEPO_DURUMU
             table.Columns.Add(SelectedColumnName, typeof(bool));
             table.Columns.Add(IdColumnName, typeof(int));
             table.Columns.Add(QuantityColumnName, typeof(int));
+            table.Columns.Add(ZimmetColumnName, typeof(string));
 
             foreach (var property in properties)
             {
@@ -389,6 +414,8 @@ namespace DEPO_DURUMU
             var products = ProductRepository.GetForType(type.Id);
             _currentProducts = products;
 
+            var zimmetSummary = AssignmentRepository.GetActiveSummaryByProduct();
+
             var rowNumber = 0;
             foreach (var product in products)
             {
@@ -400,6 +427,9 @@ namespace DEPO_DURUMU
                 row[SelectedColumnName] = false;
                 row[IdColumnName] = product.Id;
                 row[QuantityColumnName] = product.Quantity;
+
+                string zimmetText;
+                row[ZimmetColumnName] = zimmetSummary.TryGetValue(product.Id, out zimmetText) ? zimmetText : "";
 
                 foreach (var property in properties)
                 {
@@ -450,6 +480,14 @@ namespace DEPO_DURUMU
                 Header = "Adet",
                 Binding = new Binding(QuantityColumnName),
                 Width = new DataGridLength(60),
+                IsReadOnly = true
+            });
+
+            ProductGrid.Columns.Add(new DataGridTextColumn
+            {
+                Header = "Zimmet",
+                Binding = new Binding(ZimmetColumnName),
+                Width = new DataGridLength(130),
                 IsReadOnly = true
             });
 
@@ -569,6 +607,24 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            // Zimmetteki ürünler silinemez: önce zimmet iade alınmalı.
+            var assignedToSkip = toDelete.Where(id => AssignmentRepository.GetActiveQuantity(id) > 0).ToList();
+            if (assignedToSkip.Count > 0)
+            {
+                MessageBox.Show(
+                    assignedToSkip.Count + " ürün zimmette olduğu için silinemez, atlanacak. " +
+                    "Önce Zimmetler ekranından iade alın.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                toDelete = toDelete.Where(id => !assignedToSkip.Contains(id)).ToList();
+
+                if (toDelete.Count == 0)
+                {
+                    LoadProductGrid(_currentType);
+                    return;
+                }
+            }
+
             var result = MessageBox.Show(
                 "Seçili " + toDelete.Count + " ürün silinecek, onaylıyor musun?",
                 "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
@@ -668,8 +724,17 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            var skippedAssigned = 0;
+
             foreach (var productId in toMove)
             {
+                // Zimmetteki adetler hurdaya taşınamaz.
+                if (ProductRepository.GetQuantity(productId) - AssignmentRepository.GetActiveQuantity(productId) < 1)
+                {
+                    skippedAssigned++;
+                    continue;
+                }
+
                 var moveQuantity = AskScrapQuantity(productId);
                 if (moveQuantity == 0)
                 {
@@ -677,7 +742,22 @@ namespace DEPO_DURUMU
                     continue;
                 }
 
-                ScrapRepository.MoveToScrap(productId, _currentType, moveQuantity);
+                try
+                {
+                    ScrapRepository.MoveToScrap(productId, _currentType, moveQuantity);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    MessageBox.Show(ex.Message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+
+            if (skippedAssigned > 0)
+            {
+                MessageBox.Show(
+                    skippedAssigned + " ürün zimmette olduğu için hurdaya taşınmadı. " +
+                    "Önce Zimmetler ekranından iade alın.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             LoadProductGrid(_currentType);
@@ -689,7 +769,9 @@ namespace DEPO_DURUMU
         /// </summary>
         private int AskScrapQuantity(int productId)
         {
-            var available = ProductRepository.GetQuantity(productId);
+            var totalQuantity = ProductRepository.GetQuantity(productId);
+            var assignedQuantity = AssignmentRepository.GetActiveQuantity(productId);
+            var available = totalQuantity - assignedQuantity;
             if (available <= 1)
             {
                 return 1;
@@ -697,7 +779,9 @@ namespace DEPO_DURUMU
 
             var description = BuildProductDescription(ProductRepository.GetValues(productId), 1);
             var prompt = (string.IsNullOrEmpty(description) ? "Ürün" : description) +
-                         "\n\nBu üründen depoda " + available + " adet var. Kaç adedi hurdaya taşınsın?";
+                         "\n\nBu üründen depoda " + totalQuantity + " adet var" +
+                         (assignedQuantity > 0 ? " (" + assignedQuantity + " adedi zimmette, en fazla " + available + " adet taşınabilir)" : "") +
+                         ". Kaç adedi hurdaya taşınsın?";
 
             while (true)
             {

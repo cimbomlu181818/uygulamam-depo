@@ -280,6 +280,13 @@ namespace DEPO_DURUMU.Data
         /// </summary>
         public static void Delete(int productId)
         {
+            // Zimmette olan ürün silinemez: önce zimmet iade alınmalı.
+            if (AssignmentRepository.GetActiveQuantity(productId) > 0)
+            {
+                throw new System.InvalidOperationException(
+                    "Bu ürün zimmette olduğu için silinemez. Önce zimmeti iade alın.");
+            }
+
             using (var connection = Database.OpenConnection())
             using (var command = connection.CreateCommand())
             {
