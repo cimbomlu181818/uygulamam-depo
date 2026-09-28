@@ -11,7 +11,8 @@ namespace DEPO_DURUMU
         private readonly int _productTypeId;
         private readonly string _typeName;
         private readonly List<PropertyDefinition> _properties;
-        private readonly Dictionary<int, TextBox> _inputs = new Dictionary<int, TextBox>();
+        private readonly Dictionary<int, PropertyDefinition> _propertyById = new Dictionary<int, PropertyDefinition>();
+        private readonly Dictionary<int, FrameworkElement> _inputs = new Dictionary<int, FrameworkElement>();
         private TextBox _quantityBox;
 
         public AddProductWindow(int productTypeId, string typeName)
@@ -54,16 +55,13 @@ namespace DEPO_DURUMU
                     Margin = new Thickness(0, 8, 0, 2)
                 };
 
-                var textBox = new TextBox
-                {
-                    Height = 26,
-                    VerticalContentAlignment = VerticalAlignment.Center
-                };
+                var input = DynamicFieldFactory.CreateInput(property.DataType, "");
 
-                _inputs[property.Id] = textBox;
+                _propertyById[property.Id] = property;
+                _inputs[property.Id] = input;
 
                 FieldsPanel.Children.Add(label);
-                FieldsPanel.Children.Add(textBox);
+                FieldsPanel.Children.Add(input);
             }
         }
 
@@ -85,7 +83,7 @@ namespace DEPO_DURUMU
                     continue;
                 }
 
-                var value = _inputs[property.Id].Text.Trim();
+                var value = DynamicFieldFactory.ReadValue(property.DataType, _inputs[property.Id]);
                 if (string.IsNullOrEmpty(value))
                 {
                     continue;
@@ -113,7 +111,7 @@ namespace DEPO_DURUMU
 
             foreach (var property in _properties)
             {
-                var value = _inputs[property.Id].Text.Trim();
+                var value = DynamicFieldFactory.ReadValue(property.DataType, _inputs[property.Id]);
                 ProductRepository.SetValue(productId, property.Id, value);
             }
 
@@ -133,7 +131,7 @@ namespace DEPO_DURUMU
             var serial = _properties.FirstOrDefault(p => p.IsSerialNumber);
             if (serial != null)
             {
-                var value = _inputs[serial.Id].Text.Trim();
+                var value = DynamicFieldFactory.ReadValue(serial.DataType, _inputs[serial.Id]);
                 if (!string.IsNullOrEmpty(value))
                 {
                     parts.Add(serial.Name + ": " + value);
@@ -152,7 +150,7 @@ namespace DEPO_DURUMU
                     continue;
                 }
 
-                var value = _inputs[property.Id].Text.Trim();
+                var value = DynamicFieldFactory.ReadValue(property.DataType, _inputs[property.Id]);
                 if (!string.IsNullOrEmpty(value))
                 {
                     parts.Add(property.Name + ": " + value);

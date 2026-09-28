@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -799,6 +800,328 @@ namespace DEPO_DURUMU
 
                 MessageBox.Show("1 ile " + available + " arasında bir sayı yaz.",
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        // ---------- DIŞA AKTAR / İÇE AKTAR (CSV) ----------
+
+        private void ExportCsvButton_Click(object sender, RoutedEventArgs e)
+        {
+            var view = ProductGrid.ItemsSource as DataView;
+            if (view == null || _currentType == null)
+            {
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Dışa Aktar",
+                FileName = _currentType.Name + ".csv",
+                Filter = "CSV dosyası (*.csv)|*.csv"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var headers = new List<string> { "Sıra No" };
+            headers.AddRange(_currentProperties.Select(p => p.Name));
+            headers.Add("Adet");
+
+            var lines = new List<string> { string.Join(";", headers.Select(CsvEscape)) };
+
+            foreach (DataRowView rowView in view)
+            {
+                var cells = new List<string> { rowView[NoColumnName].ToString() };
+                cells.AddRange(_currentProperties.Select(p => (string)rowView[p.Name]));
+                cells.Add(rowView[QuantityColumnName].ToString());
+
+                lines.Add(string.Join(";", cells.Select(CsvEscape)));
+            }
+
+            File.WriteAllLines(dialog.FileName, lines, new System.Text.UTF8Encoding(true));
+
+            LogRepository.Add(_currentType.Name, view.Count + " satır", "Dışa aktarıldı");
+
+            MessageBox.Show(view.Count + " ürün dışa aktarıldı.", "Depo Durumu",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private static string CsvEscape(string value)
+        {
+            value = value ?? "";
+            if (value.Contains(";") || value.Contains("\"") || value.Contains("\n"))
+            {
+                return "\"" + value.Replace("\"", "\"\"") + "\"";
+            }
+            return value;
+        }
+
+        private void ImportCsvButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentType == null)
+            {
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "İçe Aktar",
+                Filter = "CSV dosyası (*.csv)|*.csv"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            List<string[]> rows;
+            try
+            {
+                rows = ParseCsv(dialog.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (rows.Count < 2)
+            {
+                MessageBox.Show("Dosyada, başlık satırından sonra en az bir veri satırı olmalı.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var headers = rows[0];
+            var columnToProperty = new Dictionary<int, PropertyDefinition>();
+            var quantityColumn = -1;
+
+            for (var i = 0; i < headers.Length; i++)
+            {
+                var header = headers[i].Trim();
+
+                if (string.Equals(header, "Adet", StringComparison.OrdinalIgnoreCase))
+                {
+                    quantityColumn = i;
+                    continue;
+                }
+
+                var property = _currentProperties.FirstOrDefault(p =>
+                    string.Equals(p.Name, header, StringComparison.OrdinalIgnoreCase));
+
+                if (property != null)
+                {
+                    columnToProperty[i] = property;
+                }
+            }
+
+            var added = 0;
+            var skipped = new List<string>();
+
+            for (var r = 1; r < rows.Count; r++)
+            {
+                var cells = rows[r];
+
+                var quantity = 1;
+                if (quantityColumn >= 0 && quantityColumn < cells.Length)
+                {
+                    int.TryParse(cells[quantityColumn].Trim(), out quantity);
+                }
+                if (quantity < 1)
+                {
+                    quantity = 1;
+                }
+
+                // Seri No gibi tekil özellikleri, depoda ve hurdada önceden kontrol et.
+                var conflict = false;
+                foreach (var pair in columnToProperty)
+                {
+                    var property = pair.Value;
+                    if (!property.IsSerialNumber || pair.Key >= cells.Length)
+                    {
+                        continue;
+                    }
+
+                    var value = cells[pair.Key].Trim();
+                    if (string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    if (ProductRepository.IsValueUsedByAnotherProduct(property.Id, value, -1) ||
+                        ScrapRepository.IsSerialNumberUsed(value))
+                    {
+                        skipped.Add(value);
+                        conflict = true;
+                    }
+                }
+
+                if (conflict)
+                {
+                    continue;
+                }
+
+                var productId = ProductRepository.Add(_currentType.Id, quantity);
+
+                foreach (var pair in columnToProperty)
+                {
+                    if (pair.Key >= cells.Length)
+                    {
+                        continue;
+                    }
+
+                    ProductRepository.SetValue(productId, pair.Value.Id, cells[pair.Key].Trim());
+                }
+
+                added++;
+            }
+
+            LogRepository.Add(_currentType.Name, added + " satır", "İçe aktarıldı");
+
+            var message = added + " ürün içe aktarıldı.";
+            if (skipped.Count > 0)
+            {
+                message += "\n\nZaten kullanılan seri no olduğu için eklenmeyenler: " + string.Join(", ", skipped);
+            }
+            MessageBox.Show(message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+
+            LoadProductGrid(_currentType);
+        }
+
+        /// <summary>Basit bir CSV okuyucu: ";" ayraçlı, çift tırnak içinde ";" ve satır sonu olabilir.</summary>
+        private static List<string[]> ParseCsv(string path)
+        {
+            var text = File.ReadAllText(path, System.Text.Encoding.UTF8);
+            var rows = new List<string[]>();
+            var current = new List<string>();
+            var field = new System.Text.StringBuilder();
+            var inQuotes = false;
+
+            for (var i = 0; i < text.Length; i++)
+            {
+                var c = text[i];
+
+                if (inQuotes)
+                {
+                    if (c == '"' && i + 1 < text.Length && text[i + 1] == '"')
+                    {
+                        field.Append('"');
+                        i++;
+                    }
+                    else if (c == '"')
+                    {
+                        inQuotes = false;
+                    }
+                    else
+                    {
+                        field.Append(c);
+                    }
+                    continue;
+                }
+
+                if (c == '"')
+                {
+                    inQuotes = true;
+                }
+                else if (c == ';')
+                {
+                    current.Add(field.ToString());
+                    field.Clear();
+                }
+                else if (c == '\r')
+                {
+                    // yok say, \n satırı bitirecek
+                }
+                else if (c == '\n')
+                {
+                    current.Add(field.ToString());
+                    field.Clear();
+                    rows.Add(current.ToArray());
+                    current = new List<string>();
+                }
+                else
+                {
+                    field.Append(c);
+                }
+            }
+
+            if (field.Length > 0 || current.Count > 0)
+            {
+                current.Add(field.ToString());
+                rows.Add(current.ToArray());
+            }
+
+            return rows.Where(r => r.Length > 1 || !string.IsNullOrWhiteSpace(r.FirstOrDefault())).ToList();
+        }
+
+        // ---------- YEDEKLE / GERİ YÜKLE ----------
+
+        private void BackupButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Yedek Al",
+                FileName = "depostok_yedek_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".db",
+                Filter = "Depo Durumu yedek dosyası (*.db)|*.db"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            try
+            {
+                BackupService.CreateBackup(dialog.FileName);
+                LogRepository.Add(null, System.IO.Path.GetFileName(dialog.FileName), "Yedek alındı");
+                MessageBox.Show("Yedek başarıyla alındı.", "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Yedek alınamadı: " + ex.Message, "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private void RestoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Yedekten Geri Yükle",
+                Filter = "Depo Durumu yedek dosyası (*.db)|*.db"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                "Şu anki veriler, seçtiğin yedeğin üzerine yazılacak (bu işlemden önceki hâli ayrıca " +
+                "güvenlik kopyası olarak saklanır). Devam etmeden önce programı kapatıp yeniden açman " +
+                "gerekecek. Devam edilsin mi?",
+                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+            if (confirm != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                BackupService.RestoreBackup(dialog.FileName);
+                MessageBox.Show(
+                    "Yedek geri yüklendi. Değişikliklerin görünmesi için programı şimdi kapatıp yeniden aç.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Geri yükleme başarısız: " + ex.Message, "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 

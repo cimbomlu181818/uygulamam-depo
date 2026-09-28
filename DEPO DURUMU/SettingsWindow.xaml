@@ -62,6 +62,7 @@
                         <ComboBoxItem Content="Metin" />
                         <ComboBoxItem Content="Sayı" />
                         <ComboBoxItem Content="Tarih" />
+                        <ComboBoxItem Content="Evet/Hayır" />
                     </ComboBox>
                     <TextBox x:Name="NewPropertyNameBox"
                              Height="26"

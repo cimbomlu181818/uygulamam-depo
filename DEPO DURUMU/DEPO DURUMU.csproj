@@ -78,6 +78,8 @@
     <Compile Include="AssignmentEditWindow.xaml.cs">
       <DependentUpon>AssignmentEditWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Data\BackupService.cs" />
+    <Compile Include="Data\DynamicFieldFactory.cs" />
     <Compile Include="HandoverWindow.xaml.cs">
       <DependentUpon>HandoverWindow.xaml</DependentUpon>
     </Compile>

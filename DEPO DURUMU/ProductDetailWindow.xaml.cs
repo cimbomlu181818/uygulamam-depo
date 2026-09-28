@@ -13,7 +13,7 @@ namespace DEPO_DURUMU
         private readonly ProductType _type;
         private readonly int _productId;
         private readonly List<PropertyDefinition> _properties;
-        private readonly Dictionary<int, TextBox> _editInputs = new Dictionary<int, TextBox>();
+        private readonly Dictionary<int, FrameworkElement> _editInputs = new Dictionary<int, FrameworkElement>();
         private TextBox _quantityInput;
 
         /// <summary>
@@ -176,17 +176,13 @@ namespace DEPO_DURUMU
                     Margin = new Thickness(0, 8, 0, 2)
                 };
 
-                var textBox = new TextBox
-                {
-                    Height = 26,
-                    VerticalContentAlignment = VerticalAlignment.Center,
-                    Text = values.ContainsKey(property.Id) ? values[property.Id] : ""
-                };
+                var currentValue = values.ContainsKey(property.Id) ? values[property.Id] : "";
+                var input = DynamicFieldFactory.CreateInput(property.DataType, currentValue);
 
-                _editInputs[property.Id] = textBox;
+                _editInputs[property.Id] = input;
 
                 FieldsPanel.Children.Add(label);
-                FieldsPanel.Children.Add(textBox);
+                FieldsPanel.Children.Add(input);
             }
 
             EditButton.Visibility = Visibility.Collapsed;
@@ -229,7 +225,7 @@ namespace DEPO_DURUMU
                     continue;
                 }
 
-                var value = _editInputs[property.Id].Text.Trim();
+                var value = DynamicFieldFactory.ReadValue(property.DataType, _editInputs[property.Id]);
                 if (string.IsNullOrEmpty(value))
                 {
                     continue;
@@ -258,7 +254,7 @@ namespace DEPO_DURUMU
 
             foreach (var property in _properties)
             {
-                var value = _editInputs[property.Id].Text.Trim();
+                var value = DynamicFieldFactory.ReadValue(property.DataType, _editInputs[property.Id]);
                 ProductRepository.SetValue(_productId, property.Id, value);
             }
 

@@ -16,6 +16,10 @@
             <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
             <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />
             <MenuItem Header="Tutanaklar" Click="HandoversMenu_Click" />
+            <MenuItem Header="Yedekle">
+                <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
+                <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
+            </MenuItem>
         </Menu>
 
         <!-- MENÜNÜN ALTINDAKİ ALAN: iki sayfa üst üste durur, biri görünür -->
@@ -118,6 +122,16 @@
                         <Button x:Name="FilterButton"
                                 Content="Filtrele"
                                 Click="FilterButton_Click"
+                                Height="30"
+                                Margin="0,0,0,10" />
+
+                        <Button Content="Dışa Aktar (Excel/CSV)"
+                                Click="ExportCsvButton_Click"
+                                Height="30"
+                                Margin="0,0,0,10" />
+
+                        <Button Content="İçe Aktar (CSV)"
+                                Click="ImportCsvButton_Click"
                                 Height="30"
                                 Margin="0,0,0,10" />
 
