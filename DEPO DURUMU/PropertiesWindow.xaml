@@ -1,0 +1,54 @@
+﻿<Window x:Class="DEPO_DURUMU.PropertiesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Özellikler"
+        Height="450" Width="400"
+        WindowStartupLocation="CenterOwner">
+
+    <DockPanel Margin="10">
+
+        <!-- ÜST: yeni özellik ekleme -->
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+            <Button DockPanel.Dock="Right"
+                    Content="Ekle"
+                    Width="70"
+                    Margin="6,0,0,0"
+                    Click="AddPropertyButton_Click" />
+            <ComboBox x:Name="NewPropertyDataTypeCombo"
+                      DockPanel.Dock="Right"
+                      Width="90"
+                      Margin="6,0,0,0"
+                      SelectedIndex="0">
+                <ComboBoxItem Content="Metin" />
+                <ComboBoxItem Content="Sayı" />
+                <ComboBoxItem Content="Tarih" />
+                <ComboBoxItem Content="Evet/Hayır" />
+            </ComboBox>
+            <TextBox x:Name="NewPropertyNameBox"
+                     Height="26"
+                     VerticalContentAlignment="Center" />
+        </DockPanel>
+
+        <!-- ALT: yeniden adlandır / sil / kapat butonları -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,10,0,0">
+            <Button Content="Yeniden Adlandır"
+                    Width="120"
+                    Margin="0,0,6,0"
+                    Click="RenamePropertyButton_Click" />
+            <Button Content="Sil"
+                    Width="70"
+                    Margin="0,0,6,0"
+                    Click="DeletePropertyButton_Click" />
+            <Button Content="Kapat"
+                    Width="70"
+                    Click="CloseButton_Click" />
+        </StackPanel>
+
+        <!-- ORTA: özellik listesi -->
+        <ListBox x:Name="PropertyList" DisplayMemberPath="Name" />
+
+    </DockPanel>
+</Window>

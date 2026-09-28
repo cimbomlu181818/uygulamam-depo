@@ -10,16 +10,20 @@
 
         <!-- ÜST MENÜ (her pencerede görünecek) -->
         <Menu DockPanel.Dock="Top" Padding="4">
-            <MenuItem Header="Ana Sayfa" Click="HomeMenu_Click" />
-            <MenuItem Header="Ayarlar" Click="SettingsMenu_Click" />
-            <MenuItem Header="Log" Click="LogMenu_Click" />
-            <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
-            <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />
-            <MenuItem Header="Tutanaklar" Click="HandoversMenu_Click" />
-            <MenuItem Header="Yedekle">
+            <MenuItem Header="🏠"
+                      FontSize="15"
+                      ToolTip="Ana Sayfa"
+                      Click="HomeMenu_Click" />
+            <MenuItem Header="Ayarlar">
+                <MenuItem Header="Ürün Cinsleri" Click="TypesMenu_Click" />
+                <MenuItem Header="Özellikler" Click="PropertiesMenu_Click" />
+                <MenuItem Header="Log" Click="LogMenu_Click" />
                 <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
                 <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
             </MenuItem>
+            <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
+            <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />
+            <MenuItem Header="Tutanaklar" Click="HandoversMenu_Click" />
         </Menu>
 
         <!-- MENÜNÜN ALTINDAKİ ALAN: iki sayfa üst üste durur, biri görünür -->

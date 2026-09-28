@@ -1457,9 +1457,17 @@ namespace DEPO_DURUMU
             ShowHome();
         }
 
-        private void SettingsMenu_Click(object sender, RoutedEventArgs e)
+        private void TypesMenu_Click(object sender, RoutedEventArgs e)
         {
-            var window = new SettingsWindow { Owner = this };
+            var window = new TypesWindow { Owner = this };
+            window.ShowDialog();
+
+            ShowHome();
+        }
+
+        private void PropertiesMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new PropertiesWindow { Owner = this };
             window.ShowDialog();
 
             ShowHome();
