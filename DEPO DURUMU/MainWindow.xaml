@@ -52,39 +52,6 @@
                              MouseDoubleClick="ProductTypeList_MouseDoubleClick" />
                 </DockPanel>
 
-                <!-- ANA SAYFA ARAMA SONUÇLARI: sağ-alt köşeden sürüklenerek büyütülebilir -->
-                <Popup x:Name="HomeSearchPopup"
-                       PlacementTarget="{Binding ElementName=HomeSearchBox}"
-                       Placement="Bottom"
-                       StaysOpen="True"
-                       AllowsTransparency="True">
-                    <Border x:Name="HomeSearchOverlayBorder"
-                            Width="650"
-                            Height="420"
-                            Background="White"
-                            BorderBrush="Gray"
-                            BorderThickness="1">
-                        <DockPanel>
-                            <Thumb x:Name="HomeSearchResizeThumb"
-                                   DockPanel.Dock="Bottom"
-                                   HorizontalAlignment="Right"
-                                   Width="16"
-                                   Height="16"
-                                   Cursor="SizeNWSE"
-                                   Background="Gray"
-                                   DragDelta="HomeSearchResizeThumb_DragDelta" />
-                            <Button DockPanel.Dock="Top"
-                                    Content="Kapat (X)"
-                                    HorizontalAlignment="Right"
-                                    Margin="4"
-                                    Click="HomeSearchCloseButton_Click" />
-                            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                <StackPanel x:Name="HomeSearchGroupsPanel" Margin="8" />
-                            </ScrollViewer>
-                        </DockPanel>
-                    </Border>
-                </Popup>
-
                 <!-- ORTA BÖLÜM: istatistik kutuları + son işlemler -->
                 <DockPanel Grid.Column="1" Margin="0,10,10,10">
                     <WrapPanel x:Name="StatisticsPanel" DockPanel.Dock="Top" />
@@ -205,9 +172,10 @@
                         <TextBox x:Name="TypeSearchBox"
                                  Height="26"
                                  VerticalContentAlignment="Center"
-                                 TextChanged="TypeSearchBox_TextChanged" />
+                                 TextChanged="TypeSearchBox_TextChanged"
+                                 KeyDown="HomeSearchBox_KeyDown" />
                         <TextBlock x:Name="TypeSearchPlaceholder"
-                                   Text="Ara"
+                                   Text="Tüm uygulamada ara"
                                    Foreground="Gray"
                                    Margin="6,0,0,0"
                                    VerticalAlignment="Center"
@@ -248,6 +216,39 @@
                               MouseDoubleClick="ProductGrid_MouseDoubleClick" />
                 </DockPanel>
             </Grid>
+
+            <!-- GENEL ARAMA SONUÇLARI (ana sayfadaki ve cins sayfasındaki arama kutuları için ortak): sağ-alt köşeden sürüklenerek büyütülebilir.
+         Hangi arama kutusunun altında açılacağı kod tarafından belirlenir. -->
+            <Popup x:Name="HomeSearchPopup"
+                   Placement="Bottom"
+                   StaysOpen="True"
+                   AllowsTransparency="True">
+                <Border x:Name="HomeSearchOverlayBorder"
+                        Width="650"
+                        Height="420"
+                        Background="White"
+                        BorderBrush="Gray"
+                        BorderThickness="1">
+                    <DockPanel>
+                        <Thumb x:Name="HomeSearchResizeThumb"
+                               DockPanel.Dock="Bottom"
+                               HorizontalAlignment="Right"
+                               Width="16"
+                               Height="16"
+                               Cursor="SizeNWSE"
+                               Background="Gray"
+                               DragDelta="HomeSearchResizeThumb_DragDelta" />
+                        <Button DockPanel.Dock="Top"
+                                Content="Kapat (X)"
+                                HorizontalAlignment="Right"
+                                Margin="4"
+                                Click="HomeSearchCloseButton_Click" />
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="HomeSearchGroupsPanel" Margin="8" />
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+            </Popup>
 
         </Grid>
 

@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Data.SQLite;
+using System.Linq;
 
 namespace DEPO_DURUMU.Data
 {
@@ -23,6 +25,17 @@ namespace DEPO_DURUMU.Data
     }
 
     /// <summary>
+    /// Ana sayfa aramasında, hurdadaki bir cinse ait sonuçları (o cinsin sütunlarıyla) tutar.
+    /// </summary>
+    public class ScrapSearchGroup
+    {
+        public string TypeName { get; set; }
+
+        /// <summary>Gizli "__ScrapId" sütunu + özellik sütunları + en sağda "Hurda" yazan durum sütunu.</summary>
+        public DataView View { get; set; }
+    }
+
+    /// <summary>
     /// Hurda: gerçek depodan tamamen bağımsız, donmuş ürün kayıtları.
     /// Bir ürün hurdaya taşındığında o anki tüm bilgisi (cins adı, özellik adları,
     /// değerleri) burada ayrı bir kopya olarak saklanır; gerçek depoda o cins ya da
@@ -31,6 +44,9 @@ namespace DEPO_DURUMU.Data
     /// </summary>
     public static class ScrapRepository
     {
+        public const string SearchIdColumn = "__ScrapId";
+        public const string SearchStatusColumn = "__Status";
+
         /// <summary>
         /// Bir ürünü hurdaya taşır: önce tüm bilgisini donmuş bir kopya olarak
         /// buraya yazar, sonra gerçek depodan (Products/ProductValues) tamamen siler.
@@ -149,6 +165,135 @@ namespace DEPO_DURUMU.Data
             }
 
             return list;
+        }
+
+        /// <summary>
+        /// Hurdadaki TÜM kayıtların değerlerini tek sorguda getirir (hurda kaydı Id'sine göre gruplu).
+        /// Hurda tablosunu gerçek depo gibi listelerken kullanılır.
+        /// </summary>
+        public static Dictionary<int, List<ScrapValue>> GetAllValuesGrouped()
+        {
+            var result = new Dictionary<int, List<ScrapValue>>();
+
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "SELECT ScrapProductId, PropertyId, PropertyName, DataType, IsSerialNumber, TextValue " +
+                    "FROM ScrapProductValues ORDER BY Id;";
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        var scrapProductId = reader.GetInt32(0);
+
+                        List<ScrapValue> list;
+                        if (!result.TryGetValue(scrapProductId, out list))
+                        {
+                            list = new List<ScrapValue>();
+                            result[scrapProductId] = list;
+                        }
+
+                        list.Add(new ScrapValue
+                        {
+                            PropertyId = reader.IsDBNull(1) ? (int?)null : reader.GetInt32(1),
+                            PropertyName = reader.GetString(2),
+                            DataType = reader.GetString(3),
+                            IsSerialNumber = reader.GetInt32(4) == 1,
+                            TextValue = reader.IsDBNull(5) ? "" : reader.GetString(5)
+                        });
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Ana sayfa araması için: yazılan metni hurdadaki TÜM kayıtların TÜM değerlerinde arar,
+        /// sonuçları cinse göre gruplar. Her satırın en sağında "Hurda" yazan bir durum sütunu bulunur.
+        /// </summary>
+        public static List<ScrapSearchGroup> Search(string text)
+        {
+            var groups = new List<ScrapSearchGroup>();
+            var matchedIds = new HashSet<int>();
+
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "SELECT DISTINCT ScrapProductId FROM ScrapProductValues WHERE TextValue LIKE @pattern;";
+                command.Parameters.Add(new SQLiteParameter("@pattern", "%" + text + "%"));
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        matchedIds.Add(reader.GetInt32(0));
+                    }
+                }
+            }
+
+            if (matchedIds.Count == 0)
+            {
+                return groups;
+            }
+
+            var items = GetAll().Where(i => matchedIds.Contains(i.Id)).OrderBy(i => i.Id).ToList();
+            var allValues = GetAllValuesGrouped();
+
+            foreach (var typeGroup in items.GroupBy(i => i.TypeName).OrderBy(g => g.Key))
+            {
+                var propertyNames = new List<string>();
+                foreach (var item in typeGroup)
+                {
+                    List<ScrapValue> values;
+                    if (!allValues.TryGetValue(item.Id, out values))
+                    {
+                        continue;
+                    }
+
+                    foreach (var value in values)
+                    {
+                        if (!propertyNames.Contains(value.PropertyName))
+                        {
+                            propertyNames.Add(value.PropertyName);
+                        }
+                    }
+                }
+
+                var table = new DataTable();
+                table.Columns.Add(SearchIdColumn, typeof(int));
+                foreach (var name in propertyNames)
+                {
+                    table.Columns.Add(name, typeof(string));
+                }
+                table.Columns.Add(SearchStatusColumn, typeof(string));
+
+                foreach (var item in typeGroup)
+                {
+                    List<ScrapValue> values;
+                    if (!allValues.TryGetValue(item.Id, out values))
+                    {
+                        values = new List<ScrapValue>();
+                    }
+
+                    var row = table.NewRow();
+                    row[SearchIdColumn] = item.Id;
+                    foreach (var name in propertyNames)
+                    {
+                        var found = values.FirstOrDefault(v => v.PropertyName == name);
+                        row[name] = found != null ? found.TextValue : "";
+                    }
+                    row[SearchStatusColumn] = "Hurda";
+                    table.Rows.Add(row);
+                }
+
+                groups.Add(new ScrapSearchGroup { TypeName = typeGroup.Key, View = table.DefaultView });
+            }
+
+            return groups;
         }
 
         /// <summary>

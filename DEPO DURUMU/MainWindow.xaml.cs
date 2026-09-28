@@ -22,6 +22,10 @@ namespace DEPO_DURUMU
         private const string IdColumnName = "__ProductId";
 
         private ProductType _currentType;
+
+        // Genel aramanın şu an hangi kutudan (ana sayfa / cins sayfası) yapıldığı.
+        private TextBox _searchSource;
+        private TextBox SearchSource { get { return _searchSource ?? HomeSearchBox; } }
         private List<Product> _currentProducts = new List<Product>();
         private List<PropertyDefinition> _currentProperties = new List<PropertyDefinition>();
 
@@ -78,6 +82,7 @@ namespace DEPO_DURUMU
 
         private void ShowHome()
         {
+            CloseHomeSearch();
             LoadProductTypes();
             LoadHomeStatistics();
             LoadRecentLog();
@@ -332,6 +337,8 @@ namespace DEPO_DURUMU
 
         private void ShowTypePage(ProductType type)
         {
+            CloseHomeSearch();
+
             _currentType = type;
             TypePageTitle.Text = type.Name;
             TypeSearchBox.Text = "";
@@ -617,10 +624,7 @@ namespace DEPO_DURUMU
             var window = new ScrapWindow { Owner = this };
             window.ShowDialog();
 
-            if (_currentType != null && TypePage.Visibility == Visibility.Visible)
-            {
-                LoadProductGrid(_currentType);
-            }
+            RefreshAfterScrapWindow();
         }
 
         // ---------- FİLTRE BARI ----------
@@ -867,12 +871,13 @@ namespace DEPO_DURUMU
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            ApplyFilters();
+            // Cins sayfasındaki arama da ana sayfadaki gibi TÜM uygulamada (tüm cinsler + hurda) arar.
+            RunGlobalSearch(TypeSearchBox);
         }
 
         /// <summary>
-        /// Arama kutusuna yazılan metni (tüm özellik sütunlarında, 2 harften itibaren) ve
-        /// seçili filtrelerin hepsini birlikte uygular.
+        /// Seçili filtrelerin hepsini uygular (arama artık tüm uygulamada yapıldığı için
+        /// cins sayfasındaki tabloyu süzmez).
         /// Farklı alanlar "ve", aynı alandaki değerler "veya" ile birleşir.
         /// </summary>
         private void ApplyFilters()
@@ -884,20 +889,6 @@ namespace DEPO_DURUMU
             }
 
             var conditions = new List<string>();
-
-            var text = TypeSearchBox.Text.Trim();
-            if (text.Length >= 2)
-            {
-                var pattern = EscapeForLike(text);
-
-                var searchConditions = view.Table.Columns.Cast<DataColumn>()
-                    .Where(c => c.ColumnName != NoColumnName
-                             && c.ColumnName != SelectedColumnName
-                             && c.ColumnName != IdColumnName)
-                    .Select(c => "[" + c.ColumnName + "] LIKE '%" + pattern + "%'");
-
-                conditions.Add("(" + string.Join(" OR ", searchConditions) + ")");
-            }
 
             foreach (var pair in _selected)
             {
@@ -976,7 +967,7 @@ namespace DEPO_DURUMU
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
-            RunHomeSearch();
+            RunGlobalSearch(HomeSearchBox);
         }
 
         private void HomeSearchBox_KeyDown(object sender, KeyEventArgs e)
@@ -997,9 +988,12 @@ namespace DEPO_DURUMU
         /// Sonuçları, ürün cinsi listesinin altına açılan kutuda, cinse göre gruplanmış
         /// tablolar halinde gösterir.
         /// </summary>
-        private void RunHomeSearch()
+        private void RunGlobalSearch(TextBox source)
         {
-            var text = HomeSearchBox.Text.Trim();
+            _searchSource = source;
+            HomeSearchPopup.PlacementTarget = source;
+
+            var text = source.Text.Trim();
 
             if (text.Length < 2)
             {
@@ -1008,8 +1002,9 @@ namespace DEPO_DURUMU
             }
 
             var groups = ProductSearchRepository.Search(text);
+            var scrapGroups = ScrapRepository.Search(text);
 
-            if (groups.Count == 0)
+            if (groups.Count == 0 && scrapGroups.Count == 0)
             {
                 HomeSearchGroupsPanel.Children.Clear();
                 HomeSearchGroupsPanel.Children.Add(new TextBlock
@@ -1023,6 +1018,7 @@ namespace DEPO_DURUMU
             }
 
             BuildHomeSearchGroups(groups, text);
+            BuildScrapSearchGroups(scrapGroups, text);
             HomeSearchPopup.IsOpen = true;
         }
 
@@ -1123,13 +1119,151 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var text = HomeSearchBox.Text.Trim();
+            var productId = (int)rowView[ProductSearchRepository.ProductIdColumn];
 
-            HomeSearchBox.Clear();
+            SearchSource.Clear();
             CloseHomeSearch();
 
             ShowTypePage(type);
-            TypeSearchBox.Text = text;
+            SelectProductRow(productId);
+        }
+
+        /// <summary>
+        /// Cins sayfasındaki tabloda, verilen ürünün satırını seçip görünür hâle getirir.
+        /// </summary>
+        private void SelectProductRow(int productId)
+        {
+            var view = ProductGrid.ItemsSource as DataView;
+            if (view == null)
+            {
+                return;
+            }
+
+            foreach (DataRowView rowView in view)
+            {
+                if ((int)rowView[IdColumnName] == productId)
+                {
+                    ProductGrid.SelectedItem = rowView;
+                    ProductGrid.ScrollIntoView(rowView);
+                    break;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Hurdadaki eşleşmeleri, depo sonuçlarının altına, cinse göre gruplu tablolar olarak ekler.
+        /// Her hurda satırının en sağında "Hurda" yazar.
+        /// </summary>
+        private void BuildScrapSearchGroups(List<ScrapSearchGroup> groups, string searchText)
+        {
+            foreach (var group in groups)
+            {
+                var grid = new DataGrid
+                {
+                    ItemsSource = group.View,
+                    AutoGenerateColumns = true,
+                    IsReadOnly = true,
+                    CanUserAddRows = false,
+                    CanUserDeleteRows = false,
+                    CanUserReorderColumns = false,
+                    CanUserSortColumns = false,
+                    HeadersVisibility = DataGridHeadersVisibility.Column,
+                    GridLinesVisibility = DataGridGridLinesVisibility.All,
+                    MaxHeight = 220
+                };
+
+                grid.AutoGeneratingColumn += (s, e) =>
+                    ScrapSearchGrid_AutoGeneratingColumn(s, e, searchText);
+
+                var capturedGroup = group;
+                var capturedGrid = grid;
+                grid.MouseDoubleClick += (s, e) =>
+                    ScrapSearchGrid_MouseDoubleClick(capturedGrid, capturedGroup);
+
+                var expander = new Expander
+                {
+                    Header = group.TypeName + " - Hurda (" + group.View.Count + ")",
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = Brushes.OrangeRed,
+                    IsExpanded = true,
+                    Margin = new Thickness(0, 0, 0, 8),
+                    Content = grid
+                };
+
+                HomeSearchGroupsPanel.Children.Add(expander);
+            }
+        }
+
+        private void ScrapSearchGrid_AutoGeneratingColumn(
+            object sender, DataGridAutoGeneratingColumnEventArgs e, string searchText)
+        {
+            if (e.PropertyName == ScrapRepository.SearchIdColumn)
+            {
+                e.Cancel = true;
+                return;
+            }
+
+            var textColumn = e.Column as DataGridTextColumn;
+            if (textColumn == null)
+            {
+                return;
+            }
+
+            var style = new Style(typeof(TextBlock));
+
+            if (e.PropertyName == ScrapRepository.SearchStatusColumn)
+            {
+                // En sağdaki "Hurda" işareti: turuncu-kırmızı ve kalın.
+                textColumn.Header = "Durum";
+                style.Setters.Add(new Setter(TextBlock.ForegroundProperty, Brushes.OrangeRed));
+                style.Setters.Add(new Setter(TextBlock.FontWeightProperty, FontWeights.Bold));
+                textColumn.ElementStyle = style;
+                return;
+            }
+
+            var binding = new Binding(e.PropertyName)
+            {
+                Converter = new HomeSearchHighlightConverter(searchText)
+            };
+            style.Setters.Add(new Setter(TextBlock.ForegroundProperty, binding));
+            textColumn.ElementStyle = style;
+        }
+
+        /// <summary>
+        /// Hurda sonucuna çift tıklanınca Hurda ekranını o cinsin sayfasında açar ve o ürünün satırını seçer.
+        /// </summary>
+        private void ScrapSearchGrid_MouseDoubleClick(DataGrid grid, ScrapSearchGroup group)
+        {
+            var rowView = grid.SelectedItem as DataRowView;
+            if (rowView == null)
+            {
+                return;
+            }
+
+            var scrapId = (int)rowView[ScrapRepository.SearchIdColumn];
+
+            SearchSource.Clear();
+            CloseHomeSearch();
+
+            var window = new ScrapWindow(group.TypeName, scrapId) { Owner = this };
+            window.ShowDialog();
+
+            RefreshAfterScrapWindow();
+        }
+
+        /// <summary>
+        /// Hurda ekranı kapandıktan sonra (geri getirme/silme olmuş olabilir) ekranı yeniler.
+        /// </summary>
+        private void RefreshAfterScrapWindow()
+        {
+            if (_currentType != null && TypePage.Visibility == Visibility.Visible)
+            {
+                LoadProductGrid(_currentType);
+            }
+            else
+            {
+                ShowHome();
+            }
         }
 
         /// <summary>

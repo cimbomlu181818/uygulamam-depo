@@ -80,6 +80,9 @@
     <Compile Include="ProductDetailWindow.xaml.cs">
       <DependentUpon>ProductDetailWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ScrapDetailWindow.xaml.cs">
+      <DependentUpon>ScrapDetailWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="ScrapWindow.xaml.cs">
       <DependentUpon>ScrapWindow.xaml</DependentUpon>
     </Compile>
@@ -122,6 +125,10 @@
       <SubType>Code</SubType>
     </Compile>
     <Page Include="ProductDetailWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ScrapDetailWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>
