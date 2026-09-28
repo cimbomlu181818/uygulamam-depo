@@ -56,6 +56,7 @@ namespace DEPO_DURUMU.Data
             var rank = ProductRepository.GetRank(productId, type.Id);
             var properties = TypePropertyRepository.GetForType(type.Id);
             var values = ProductRepository.GetValues(productId);
+            int scrapProductIdForLog;
 
             using (var connection = Database.OpenConnection())
             {
@@ -73,6 +74,7 @@ namespace DEPO_DURUMU.Data
                         DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
 
                     scrapProductId = Convert.ToInt32(insertCommand.ExecuteScalar());
+                    scrapProductIdForLog = scrapProductId;
                 }
 
                 foreach (var property in properties)
@@ -98,6 +100,8 @@ namespace DEPO_DURUMU.Data
 
             // Donmuş kopya güvenle yazıldı; şimdi gerçek depodan tamamen kaldır.
             ProductRepository.Delete(productId);
+
+            LogRepository.Add(type.Name, BuildDescription(GetValues(scrapProductIdForLog)), "Hurdaya taşındı");
         }
 
         /// <summary>
@@ -325,6 +329,9 @@ namespace DEPO_DURUMU.Data
         /// </summary>
         public static string Restore(int scrapProductId)
         {
+            List<ScrapValue> scrapValuesForLog = null;
+            string typeNameForLog = null;
+
             using (var connection = Database.OpenConnection())
             using (var command = connection.CreateCommand())
             {
@@ -366,6 +373,8 @@ namespace DEPO_DURUMU.Data
                 }
 
                 var scrapValues = GetValues(scrapProductId);
+                scrapValuesForLog = scrapValues;
+                typeNameForLog = typeName;
 
                 // 2) Seri No çakışması var mı diye önceden kontrol et (hiçbir şeyi
                 //    değiştirmeden önce), varsa geri getirmeyi tamamen durdur.
@@ -419,8 +428,12 @@ namespace DEPO_DURUMU.Data
                 }
             }
 
-            // 5) Hurdadan kalıcı olarak kaldır (artık gerçek depoda duruyor).
-            DeletePermanently(scrapProductId);
+            // 5) Hurdadan kaldır (artık gerçek depoda duruyor). Bu iç silme ayrıca loglanmaz.
+            var restoredDescription = BuildDescription(scrapValuesForLog);
+            var restoredTypeName = typeNameForLog;
+            DeleteRows(scrapProductId);
+
+            LogRepository.Add(restoredTypeName, restoredDescription, "Hurdadan geri getirildi");
             return null;
         }
 
@@ -428,6 +441,17 @@ namespace DEPO_DURUMU.Data
         /// Bir hurda kaydını, geri getirmeden, kalıcı olarak siler.
         /// </summary>
         public static void DeletePermanently(int scrapProductId)
+        {
+            var typeName = GetTypeName(scrapProductId);
+            var description = BuildDescription(GetValues(scrapProductId));
+
+            DeleteRows(scrapProductId);
+
+            LogRepository.Add(typeName, description, "Hurdadan kalıcı silindi");
+        }
+
+        /// <summary>Hurda kaydının satırlarını siler (log yazmaz; iç kullanım).</summary>
+        private static void DeleteRows(int scrapProductId)
         {
             using (var connection = Database.OpenConnection())
             using (var command = connection.CreateCommand())
@@ -438,6 +462,49 @@ namespace DEPO_DURUMU.Data
                 command.Parameters.Add(new SQLiteParameter("@id", scrapProductId));
                 command.ExecuteNonQuery();
             }
+        }
+
+        private static string GetTypeName(int scrapProductId)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT TypeName FROM ScrapProducts WHERE Id = @id;";
+                command.Parameters.Add(new SQLiteParameter("@id", scrapProductId));
+                var result = command.ExecuteScalar();
+                return result == null || result == DBNull.Value ? null : Convert.ToString(result);
+            }
+        }
+
+        /// <summary>
+        /// Log defterine yazılacak, o anki değerleri anlatan sabit metni oluşturur:
+        /// Seri No doluysa öne alınır, ardından dolu ilk birkaç özellik eklenir.
+        /// </summary>
+        private static string BuildDescription(List<ScrapValue> values)
+        {
+            var parts = new List<string>();
+
+            foreach (var v in values.Where(v => v.IsSerialNumber && !string.IsNullOrEmpty(v.TextValue)))
+            {
+                parts.Add(v.PropertyName + ": " + v.TextValue);
+            }
+
+            foreach (var v in values)
+            {
+                if (parts.Count >= 3)
+                {
+                    break;
+                }
+
+                if (v.IsSerialNumber || string.IsNullOrEmpty(v.TextValue))
+                {
+                    continue;
+                }
+
+                parts.Add(v.PropertyName + ": " + v.TextValue);
+            }
+
+            return string.Join(" | ", parts);
         }
     }
 }

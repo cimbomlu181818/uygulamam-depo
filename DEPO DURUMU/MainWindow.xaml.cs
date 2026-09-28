@@ -569,10 +569,50 @@ namespace DEPO_DURUMU
 
             foreach (var productId in toDelete)
             {
+                var description = BuildProductDescription(ProductRepository.GetValues(productId));
+
                 ProductRepository.Delete(productId);
+                LogRepository.Add(_currentType.Name, description, "Silindi");
             }
 
             LoadProductGrid(_currentType);
+        }
+
+        /// <summary>
+        /// Log defterine yazılacak, ürünün o anki değerlerini anlatan sabit metni oluşturur:
+        /// Seri No doluysa öne alınır, ardından dolu ilk birkaç özellik eklenir.
+        /// </summary>
+        private string BuildProductDescription(Dictionary<int, string> values)
+        {
+            var parts = new List<string>();
+
+            foreach (var property in _currentProperties.Where(p => p.IsSerialNumber))
+            {
+                if (values.ContainsKey(property.Id) && !string.IsNullOrEmpty(values[property.Id]))
+                {
+                    parts.Add(property.Name + ": " + values[property.Id]);
+                }
+            }
+
+            foreach (var property in _currentProperties)
+            {
+                if (parts.Count >= 3)
+                {
+                    break;
+                }
+
+                if (property.IsSerialNumber)
+                {
+                    continue;
+                }
+
+                if (values.ContainsKey(property.Id) && !string.IsNullOrEmpty(values[property.Id]))
+                {
+                    parts.Add(property.Name + ": " + values[property.Id]);
+                }
+            }
+
+            return string.Join(" | ", parts);
         }
 
         private void MoveSelectedToScrapButton_Click(object sender, RoutedEventArgs e)
