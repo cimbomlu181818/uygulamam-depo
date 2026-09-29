@@ -17,6 +17,21 @@ namespace DEPO_DURUMU
     {
         private static readonly CultureInfo Turkish = new CultureInfo("tr-TR");
 
+        /// <summary>
+        /// Zimmet tutanağını yazdırmadan önce ekranda gösterir. Pencerede "Yazdır" ve "Kapat" düğmeleri vardır;
+        /// yazdırmak istenirse "Yazdır"a basılır, istenmezse kapatılır.
+        /// </summary>
+        public static void ShowPreview(Window owner, List<Assignment> assignments)
+        {
+            if (assignments == null || assignments.Count == 0)
+            {
+                return;
+            }
+
+            var window = new ReceiptPreviewWindow(owner, assignments);
+            window.ShowDialog();
+        }
+
         /// <summary>Tutanağı yazdırır. Yazdırma tamamlanırsa true, iptal edilir ya da hata verirse false döner.</summary>
         public static bool Print(Window owner, Assignment assignment)
         {
@@ -110,9 +125,12 @@ namespace DEPO_DURUMU
         {
             var first = assignments[0];
 
+            var effectivePageWidth = pageWidth > 0 ? pageWidth : 750;
+
             var document = new FlowDocument
             {
-                PageWidth = pageWidth > 0 ? pageWidth : 750,
+                PageWidth = effectivePageWidth,
+                ColumnWidth = effectivePageWidth,
                 FontSize = 12,
                 PagePadding = new Thickness(30)
             };
@@ -141,26 +159,33 @@ namespace DEPO_DURUMU
                 Margin = new Thickness(0, 10, 0, 4)
             });
 
-            var itemsTable = new Table { CellSpacing = 0 };
-            itemsTable.Columns.Add(new TableColumn { Width = new GridLength(40) });
-            itemsTable.Columns.Add(new TableColumn { Width = new GridLength(1, GridUnitType.Star) });
-            itemsTable.Columns.Add(new TableColumn { Width = new GridLength(170) });
-            itemsTable.Columns.Add(new TableColumn { Width = new GridLength(60) });
+            // Malzeme listesi: teslim-tesellüm tutanağıyla aynı yapı (tüm sütunlar oransal / Star).
+            var itemsTable = new Table();
+            var columnWidths = new[] { 0.5, 3.0, 2.0, 1.0 }; // No, Malzeme, Seri No, Miktar
+            foreach (var w in columnWidths)
+            {
+                itemsTable.Columns.Add(new TableColumn { Width = new GridLength(w, GridUnitType.Star) });
+            }
 
             var itemsGroup = new TableRowGroup();
             itemsTable.RowGroups.Add(itemsGroup);
-            itemsGroup.Rows.Add(MakeItemRow(new[] { "No", "Malzeme", "Seri No", "Miktar" }, true));
+
+            var headerRow = new TableRow { Background = Brushes.LightGray };
+            headerRow.Cells.Add(MakeItemCell("No", true));
+            headerRow.Cells.Add(MakeItemCell("Malzeme", true));
+            headerRow.Cells.Add(MakeItemCell("Seri No", true));
+            headerRow.Cells.Add(MakeItemCell("Miktar", true));
+            itemsGroup.Rows.Add(headerRow);
 
             for (var i = 0; i < assignments.Count; i++)
             {
                 var a = assignments[i];
-                itemsGroup.Rows.Add(MakeItemRow(new[]
-                {
-                    (i + 1).ToString(Turkish),
-                    a.SystemNameText,
-                    string.IsNullOrEmpty(a.SerialNo) ? "-" : a.SerialNo,
-                    a.Quantity.ToString(Turkish)
-                }, false));
+                var itemRow = new TableRow();
+                itemRow.Cells.Add(MakeItemCell((i + 1).ToString(Turkish), false));
+                itemRow.Cells.Add(MakeItemCell(a.SystemNameText, false));
+                itemRow.Cells.Add(MakeItemCell(string.IsNullOrEmpty(a.SerialNo) ? "-" : a.SerialNo, false));
+                itemRow.Cells.Add(MakeItemCell(a.Quantity.ToString(Turkish), false));
+                itemsGroup.Rows.Add(itemRow);
             }
 
             document.Blocks.Add(itemsTable);
@@ -188,35 +213,32 @@ namespace DEPO_DURUMU
             return document;
         }
 
-        private static TableRow MakeItemRow(string[] cells, bool bold)
+        private static TableCell MakeItemCell(string text, bool bold)
         {
-            var row = new TableRow();
+            var paragraph = new Paragraph(new Run(text ?? "")) { Margin = new Thickness(0) };
 
-            foreach (var text in cells)
+            if (bold)
             {
-                var paragraph = new Paragraph(new Run(text ?? "")) { Margin = new Thickness(0) };
-
-                if (bold)
-                {
-                    paragraph.FontWeight = FontWeights.SemiBold;
-                }
-
-                row.Cells.Add(new TableCell(paragraph)
-                {
-                    BorderBrush = Brushes.Black,
-                    BorderThickness = new Thickness(0.5),
-                    Padding = new Thickness(4, 2, 4, 2)
-                });
+                paragraph.FontWeight = FontWeights.Bold;
+                paragraph.TextAlignment = TextAlignment.Center;
             }
 
-            return row;
+            return new TableCell(paragraph)
+            {
+                BorderBrush = Brushes.Black,
+                BorderThickness = new Thickness(1),
+                Padding = new Thickness(4)
+            };
         }
 
         private static FlowDocument BuildDocument(Assignment assignment, double pageWidth)
         {
+            var effectivePageWidth = pageWidth > 0 ? pageWidth : 750;
+
             var document = new FlowDocument
             {
-                PageWidth = pageWidth > 0 ? pageWidth : 750,
+                PageWidth = effectivePageWidth,
+                ColumnWidth = effectivePageWidth,
                 FontSize = 12,
                 PagePadding = new Thickness(30)
             };
@@ -297,6 +319,69 @@ namespace DEPO_DURUMU
                 BorderThickness = new Thickness(0, 1, 0, 0),
                 Padding = new Thickness(0, 8, 0, 0)
             };
+        }
+
+        /// <summary>Tutanağı ekranda gösteren, Yazdır ve Kapat düğmeli önizleme penceresi (kodla kurulur, XAML gerekmez).</summary>
+        private sealed class ReceiptPreviewWindow : Window
+        {
+            public ReceiptPreviewWindow(Window owner, List<Assignment> assignments)
+            {
+                Title = "Zimmet Tutanağı";
+                Owner = owner;
+                Width = 820;
+                Height = 720;
+                MinWidth = 500;
+                MinHeight = 400;
+                WindowStartupLocation = WindowStartupLocation.CenterOwner;
+
+                var document = assignments.Count == 1
+                    ? BuildDocument(assignments[0], 720)
+                    : BuildDocument(assignments, 720);
+                document.Background = Brushes.White;
+
+                var viewer = new FlowDocumentScrollViewer
+                {
+                    Document = document,
+                    VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                    Background = Brushes.White
+                };
+
+                var printButton = new Button
+                {
+                    Content = "Yazdır",
+                    Width = 100,
+                    Height = 30,
+                    Margin = new Thickness(0, 0, 8, 0),
+                    IsDefault = true
+                };
+                printButton.Click += (s, e) => AssignmentReceiptPrinter.Print(this, assignments);
+
+                var closeButton = new Button
+                {
+                    Content = "Kapat",
+                    Width = 100,
+                    Height = 30,
+                    IsCancel = true
+                };
+                closeButton.Click += (s, e) => Close();
+
+                var buttons = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    Margin = new Thickness(10)
+                };
+                buttons.Children.Add(printButton);
+                buttons.Children.Add(closeButton);
+
+                var root = new DockPanel();
+                DockPanel.SetDock(buttons, Dock.Bottom);
+                root.Children.Add(buttons);
+                root.Children.Add(viewer);
+
+                Content = root;
+            }
         }
     }
 }

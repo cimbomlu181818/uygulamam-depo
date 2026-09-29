@@ -217,22 +217,16 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var print = MessageBox.Show(this,
-                (_bulkIds == null ? "Ürün zimmetlendi." : newIds.Count + " ürün zimmetlendi.") +
-                "\n\nZimmet tutanağı şimdi yazdırılsın mı?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            // Zimmet kaydedildi: tutanak hemen yazdırılmaz, önce ekranda (önizleme) açılır.
+            // Yazdırmak istenirse önizleme penceresindeki "Yazdır" düğmesi kullanılır.
+            var assignments = newIds
+                .Select(id => AssignmentRepository.GetById(id))
+                .Where(a => a != null)
+                .ToList();
 
-            if (print == MessageBoxResult.Yes)
+            if (assignments.Count > 0)
             {
-                var assignments = newIds
-                    .Select(id => AssignmentRepository.GetById(id))
-                    .Where(a => a != null)
-                    .ToList();
-
-                if (assignments.Count > 0)
-                {
-                    AssignmentReceiptPrinter.Print(this, assignments);
-                }
+                AssignmentReceiptPrinter.ShowPreview(this, assignments);
             }
 
             DialogResult = true;

@@ -802,13 +802,10 @@ namespace DEPO_DURUMU
             handover.Click += (s, e) => CreateHandoverFor(productIds);
             menu.Items.Add(handover);
 
-            // Zimmetle, sadece "Zimmet" özelliği eklenmiş cinslerde görünür.
-            if (_currentProperties.Any(p => PropertyDefinitionRepository.IsZimmet(p)))
-            {
-                var assign = new MenuItem { Header = "Zimmetle" + suffix };
-                assign.Click += (s, e) => AssignProducts(productIds);
-                menu.Items.Add(assign);
-            }
+            // Zimmetle, her ürün cinsinde ve hem tek hem çoklu seçimde görünür.
+            var assign = new MenuItem { Header = "Zimmetle" + suffix };
+            assign.Click += (s, e) => AssignProducts(productIds);
+            menu.Items.Add(assign);
 
             menu.Items.Add(new Separator());
 
