@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using DEPO_DURUMU.Data;
 
@@ -44,6 +45,8 @@ namespace DEPO_DURUMU
 
             DateBox.Text = DateTime.Now.ToString("dd.MM.yyyy", Turkish);
             ItemsGrid.ItemsSource = Items;
+            ItemsGrid.LayoutUpdated += (s, e) => UpdateFillHandle();
+            ItemsGrid.CurrentCellChanged += (s, e) => UpdateFillHandle();
             RecordText.Text = "Yeni tutanak (yazdırılınca deftere kaydedilir)";
 
             if (!string.IsNullOrWhiteSpace(serialNo) || !string.IsNullOrWhiteSpace(itemType))
@@ -228,6 +231,307 @@ namespace DEPO_DURUMU
             if (Items.Count > 0 && Items[Items.Count - 1] == row)
             {
                 Items.Add(new HandoverItem());
+            }
+        }
+
+        // ---------- EXCEL GİBİ AŞAĞI DOLDURMA ----------
+        // Bir hücreye yazı yazılınca hücrenin sağ alt köşesinde küçük bir kare çıkar. Kareyi aşağı
+        // sürükleyince, gerekirse yeni satırlar açılır ve sadece o sütuna hücredeki değer yazılır;
+        // diğer sütunlar boş kalır. Sürüklenen yerde dolu satır varsa sadece o sütunun değeri değişir.
+
+        private HandoverItem _fillSource;
+        private int _fillColumn;
+        private int _fillSteps;
+        private bool _filling;
+
+        private static T FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+        {
+            if (parent == null)
+            {
+                return null;
+            }
+
+            for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+            {
+                var child = VisualTreeHelper.GetChild(parent, i);
+                var typed = child as T;
+                if (typed != null)
+                {
+                    return typed;
+                }
+
+                var deeper = FindVisualChild<T>(child);
+                if (deeper != null)
+                {
+                    return deeper;
+                }
+            }
+
+            return null;
+        }
+
+        private static string GetColumnValue(HandoverItem item, int column)
+        {
+            switch (column)
+            {
+                case 0: return item.SerialNo;
+                case 1: return item.ItemType;
+                case 2: return item.Quantity;
+                case 3: return item.Note;
+                default: return null;
+            }
+        }
+
+        private static void SetColumnValue(HandoverItem item, int column, string value)
+        {
+            switch (column)
+            {
+                case 0: item.SerialNo = value; break;
+                case 1: item.ItemType = value; break;
+                case 2: item.Quantity = value; break;
+                case 3: item.Note = value; break;
+            }
+        }
+
+        private DataGridCell GetCell(HandoverItem item, int columnIndex)
+        {
+            var row = ItemsGrid.ItemContainerGenerator.ContainerFromItem(item) as DataGridRow;
+            if (row == null)
+            {
+                return null;
+            }
+
+            var presenter = FindVisualChild<DataGridCellsPresenter>(row);
+            if (presenter == null)
+            {
+                return null;
+            }
+
+            return presenter.ItemContainerGenerator.ContainerFromIndex(columnIndex) as DataGridCell;
+        }
+
+        /// <summary>Şu an seçili hücreyi, satırını ve sütun sırasını verir. Yoksa null döner.</summary>
+        private DataGridCell GetCurrentCell(out HandoverItem item, out int columnIndex)
+        {
+            item = null;
+            columnIndex = -1;
+
+            var info = ItemsGrid.CurrentCell;
+            if (!info.IsValid || info.Column == null)
+            {
+                return null;
+            }
+
+            item = info.Item as HandoverItem;
+            if (item == null)
+            {
+                return null;
+            }
+
+            columnIndex = ItemsGrid.Columns.IndexOf(info.Column);
+            if (columnIndex < 0)
+            {
+                return null;
+            }
+
+            return GetCell(item, columnIndex);
+        }
+
+        private void HideFillHandle()
+        {
+            if (FillHandle.Visibility != Visibility.Collapsed)
+            {
+                FillHandle.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>Doldurma tutamacını seçili hücrenin sağ alt köşesine koyar; hücre boşsa ya da görünmüyorsa gizler.</summary>
+        private void UpdateFillHandle()
+        {
+            if (_filling || GridHost.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            HandoverItem item;
+            int column;
+            var cell = GetCurrentCell(out item, out column);
+
+            if (cell == null || !cell.IsVisible || Items.IndexOf(item) < 0 ||
+                string.IsNullOrEmpty(GetColumnValue(item, column)))
+            {
+                HideFillHandle();
+                return;
+            }
+
+            Point corner;
+            try
+            {
+                corner = cell.TransformToAncestor(GridHost).Transform(new Point(cell.ActualWidth, cell.ActualHeight));
+            }
+            catch (InvalidOperationException)
+            {
+                HideFillHandle();
+                return;
+            }
+
+            var headers = FindVisualChild<DataGridColumnHeadersPresenter>(ItemsGrid);
+            var headerHeight = headers != null ? headers.ActualHeight : 22;
+
+            // Hücrenin sağ kenarı tablonun sağ kenarına değiyorsa (son sütun) kare taşmasın diye içeri çekilir.
+            if (corner.Y < headerHeight + 2 || corner.Y > GridHost.ActualHeight - 2 ||
+                corner.X < 0 || corner.X > GridHost.ActualWidth + 1)
+            {
+                HideFillHandle();
+                return;
+            }
+
+            var left = System.Math.Min(corner.X - FillHandle.Width / 2, GridHost.ActualWidth - FillHandle.Width - 1);
+            var top = corner.Y - FillHandle.Height / 2;
+
+            if (Canvas.GetLeft(FillHandle) != left)
+            {
+                Canvas.SetLeft(FillHandle, left);
+            }
+
+            if (Canvas.GetTop(FillHandle) != top)
+            {
+                Canvas.SetTop(FillHandle, top);
+            }
+
+            if (FillHandle.Visibility != Visibility.Visible)
+            {
+                FillHandle.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void FillHandle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            // Yazılmakta olan hücre/satır varsa önce kaydet ki değer satıra işlensin.
+            ItemsGrid.CommitEdit(DataGridEditingUnit.Row, true);
+
+            HandoverItem item;
+            int column;
+            var cell = GetCurrentCell(out item, out column);
+
+            if (cell == null || Items.IndexOf(item) < 0)
+            {
+                return;
+            }
+
+            _fillSource = item;
+            _fillColumn = column;
+            _fillSteps = 0;
+            _filling = true;
+
+            FillHandle.CaptureMouse();
+            e.Handled = true;
+        }
+
+        private void FillHandle_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_filling || _fillSource == null)
+            {
+                return;
+            }
+
+            var cell = GetCell(_fillSource, _fillColumn);
+            if (cell == null || cell.ActualHeight <= 0)
+            {
+                return;
+            }
+
+            var topLeft = cell.TransformToAncestor(GridHost).Transform(new Point(0, 0));
+            var cellBottom = topLeft.Y + cell.ActualHeight;
+            var delta = e.GetPosition(GridHost).Y - cellBottom;
+
+            _fillSteps = delta <= 0 ? 0 : (int)Math.Ceiling(delta / cell.ActualHeight);
+            if (_fillSteps > 500)
+            {
+                _fillSteps = 500;
+            }
+
+            if (_fillSteps == 0)
+            {
+                FillPreview.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var height = cell.ActualHeight * (_fillSteps + 1);
+            var available = GridHost.ActualHeight - topLeft.Y;
+            if (height > available)
+            {
+                height = available;
+            }
+
+            Canvas.SetLeft(FillPreview, topLeft.X);
+            Canvas.SetTop(FillPreview, topLeft.Y);
+            FillPreview.Width = cell.ActualWidth;
+            FillPreview.Height = height > 0 ? height : 0;
+            FillPreview.Visibility = Visibility.Visible;
+        }
+
+        private void FillHandle_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (!_filling)
+            {
+                return;
+            }
+
+            var source = _fillSource;
+            var column = _fillColumn;
+            var steps = _fillSteps;
+
+            _filling = false;
+            _fillSource = null;
+            _fillSteps = 0;
+            FillPreview.Visibility = Visibility.Collapsed;
+            FillHandle.ReleaseMouseCapture();
+
+            if (source != null && steps > 0)
+            {
+                FillDown(source, column, steps);
+            }
+
+            UpdateFillHandle();
+        }
+
+        private void FillHandle_LostMouseCapture(object sender, MouseEventArgs e)
+        {
+            // Sürükleme başka bir nedenle yarıda kesilirse (örneğin pencere değişirse) iptal et.
+            if (_filling)
+            {
+                _filling = false;
+                _fillSource = null;
+                _fillSteps = 0;
+                FillPreview.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        /// <summary>
+        /// Kaynak satırın verilen sütundaki değerini, altındaki "steps" satıra yazar. Yeterli satır yoksa
+        /// boş satırlar açılır. Diğer sütunlara dokunulmaz.
+        /// </summary>
+        private void FillDown(HandoverItem source, int column, int steps)
+        {
+            var value = GetColumnValue(source, column);
+            var start = Items.IndexOf(source);
+
+            if (start < 0)
+            {
+                return;
+            }
+
+            for (var i = 1; i <= steps; i++)
+            {
+                var index = start + i;
+
+                while (Items.Count <= index)
+                {
+                    Items.Add(new HandoverItem());
+                }
+
+                SetColumnValue(Items[index], column, value);
             }
         }
 

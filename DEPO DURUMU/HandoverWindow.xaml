@@ -88,6 +88,7 @@
         </StackPanel>
 
         <!-- ORTA: MALZEME TABLOSU (Excel gibi: son satıra yazınca yeni satır eklenir) -->
+        <Grid x:Name="GridHost">
         <DataGrid x:Name="ItemsGrid"
                   AutoGenerateColumns="False"
                   CanUserAddRows="True"
@@ -169,6 +170,28 @@
                                     Width="180" />
             </DataGrid.Columns>
         </DataGrid>
+
+        <!-- Excel'deki gibi aşağı doldurma: seçili hücrenin sağ alt köşesindeki küçük kare tutamaç -->
+        <Canvas ClipToBounds="True">
+            <Border x:Name="FillPreview"
+                    Visibility="Collapsed"
+                    IsHitTestVisible="False"
+                    BorderBrush="#1F6FEB"
+                    BorderThickness="2"
+                    Background="#141F6FEB" />
+            <Border x:Name="FillHandle"
+                    Width="9" Height="9"
+                    Visibility="Collapsed"
+                    Background="#1F6FEB"
+                    BorderBrush="White"
+                    BorderThickness="1"
+                    Cursor="Cross"
+                    MouseLeftButtonDown="FillHandle_MouseLeftButtonDown"
+                    MouseMove="FillHandle_MouseMove"
+                    MouseLeftButtonUp="FillHandle_MouseLeftButtonUp"
+                    LostMouseCapture="FillHandle_LostMouseCapture" />
+        </Canvas>
+        </Grid>
 
     </DockPanel>
 </Window>
