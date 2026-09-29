@@ -16,6 +16,7 @@ namespace DEPO_DURUMU
     {
         private readonly int _productId;
         private readonly int _available;
+        private readonly List<int> _bulkIds;
         private List<KnownPerson> _people = new List<KnownPerson>();
 
         public AssignWindow(int productId, string productDescription, int availableQuantity)
@@ -35,6 +36,37 @@ namespace DEPO_DURUMU
                 QuantityBox.IsEnabled = false;
                 QuantityLabel.Foreground = Brushes.Gray;
             }
+
+            try
+            {
+                _people = AssignmentRepository.GetKnownPeople();
+                PersonBox.ItemsSource = _people;
+                DepartmentBox.ItemsSource = AssignmentRepository.GetKnownDepartments();
+            }
+            catch (Exception)
+            {
+                // Öneri listesi okunamazsa kutular boş açılır; zimmetleme yine de yapılabilir.
+            }
+
+            Loaded += (s, e) => PersonBox.Focus();
+        }
+
+        /// <summary>
+        /// Birden fazla ürünü aynı kişiye toplu zimmetlemek için açılır: her ürünün zimmetlenebilir
+        /// miktarının tamamı zimmetlenir ve tek tutanak yazdırılır.
+        /// </summary>
+        public AssignWindow(List<int> productIds, string summaryText)
+        {
+            InitializeComponent();
+
+            _bulkIds = productIds;
+
+            ProductText.Text = summaryText;
+            AvailableText.Text = "Her ürünün zimmetlenebilir miktarının tamamı zimmetlenir.";
+
+            QuantityBox.Text = "Tamamı";
+            QuantityBox.IsEnabled = false;
+            QuantityLabel.Foreground = Brushes.Gray;
 
             try
             {
@@ -74,19 +106,23 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            int quantity;
-            if (!int.TryParse(QuantityBox.Text.Trim(), out quantity) || quantity < 1)
-            {
-                ShowWarning("Miktar 1 veya daha büyük bir tam sayı olmalı.");
-                QuantityBox.Focus();
-                return;
-            }
+            int quantity = 0;
 
-            if (quantity > _available)
+            if (_bulkIds == null)
             {
-                ShowWarning("Bu üründen zimmetlenebilecek miktar en fazla " + _available + ".");
-                QuantityBox.Focus();
-                return;
+                if (!int.TryParse(QuantityBox.Text.Trim(), out quantity) || quantity < 1)
+                {
+                    ShowWarning("Miktar 1 veya daha büyük bir tam sayı olmalı.");
+                    QuantityBox.Focus();
+                    return;
+                }
+
+                if (quantity > _available)
+                {
+                    ShowWarning("Bu üründen zimmetlenebilecek miktar en fazla " + _available + ".");
+                    QuantityBox.Focus();
+                    return;
+                }
             }
 
             // Yazım hatasını yakalamak için: benzer ama farklı yazılmış bir kişi daha önce varsa sor.
@@ -130,35 +166,72 @@ namespace DEPO_DURUMU
                 }
             }
 
-            int newId;
+            var newIds = new List<int>();
 
             try
             {
-                newId = AssignmentRepository.Assign(
-                    _productId,
-                    quantity,
-                    personName,
-                    RegistryNoBox.Text.Trim(),
-                    (DepartmentBox.Text ?? "").Trim(),
-                    NoteBox.Text.Trim());
+                if (_bulkIds == null)
+                {
+                    newIds.Add(AssignmentRepository.Assign(
+                        _productId,
+                        quantity,
+                        personName,
+                        RegistryNoBox.Text.Trim(),
+                        (DepartmentBox.Text ?? "").Trim(),
+                        NoteBox.Text.Trim()));
+                }
+                else
+                {
+                    foreach (var id in _bulkIds)
+                    {
+                        var available = AssignmentRepository.GetAvailableQuantity(id);
+                        if (available < 1)
+                        {
+                            continue;
+                        }
+
+                        newIds.Add(AssignmentRepository.Assign(
+                            id,
+                            available,
+                            personName,
+                            RegistryNoBox.Text.Trim(),
+                            (DepartmentBox.Text ?? "").Trim(),
+                            NoteBox.Text.Trim()));
+                    }
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Zimmetlenemedi:\n" + ex.Message, "Depo Durumu",
+                var extra = newIds.Count > 0
+                    ? "\n\nBundan önce " + newIds.Count + " ürün zimmetlendi (Zimmetler ekranından görebilirsin)."
+                    : "";
+
+                MessageBox.Show(this, "Zimmetlenemedi:\n" + ex.Message + extra, "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Error);
+
+                if (newIds.Count > 0)
+                {
+                    DialogResult = true;
+                }
+
                 return;
             }
 
             var print = MessageBox.Show(this,
-                "Ürün zimmetlendi.\n\nZimmet tutanağı şimdi yazdırılsın mı?",
+                (_bulkIds == null ? "Ürün zimmetlendi." : newIds.Count + " ürün zimmetlendi.") +
+                "\n\nZimmet tutanağı şimdi yazdırılsın mı?",
                 "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (print == MessageBoxResult.Yes)
             {
-                var assignment = AssignmentRepository.GetById(newId);
-                if (assignment != null)
+                var assignments = newIds
+                    .Select(id => AssignmentRepository.GetById(id))
+                    .Where(a => a != null)
+                    .ToList();
+
+                if (assignments.Count > 0)
                 {
-                    AssignmentReceiptPrinter.Print(this, assignment);
+                    AssignmentReceiptPrinter.Print(this, assignments);
                 }
             }
 

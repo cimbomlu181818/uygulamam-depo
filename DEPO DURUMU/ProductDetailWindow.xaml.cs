@@ -8,21 +8,24 @@ namespace DEPO_DURUMU
 {
     public partial class ProductDetailWindow : Window
     {
-        private const string SystemNameFieldName = "Sistem İsmi";
-
         private readonly ProductType _type;
         private readonly int _productId;
         private readonly List<PropertyDefinition> _properties;
+        private readonly List<PropertyDefinition> _editable;
         private readonly Dictionary<int, FrameworkElement> _editInputs = new Dictionary<int, FrameworkElement>();
         private TextBox _quantityInput;
 
         /// <summary>
-        /// Pencerede bir şey değiştiyse (düzenlendi ya da silindi) true olur.
+        /// Pencerede bir şey değiştiyse (düzenlendi) true olur.
         /// Pencereyi açan ekran buna bakıp tabloyu yeniler.
         /// </summary>
         public bool Changed { get; private set; }
 
-        public ProductDetailWindow(ProductType type, int productId)
+        /// <summary>
+        /// Çift tıklayınca bilgi penceresi olarak açılır. Sağ tık menüsündeki "Düzenle" ise
+        /// startInEditMode: true ile açar ve pencere doğrudan düzenlenebilir kutularla gelir.
+        /// </summary>
+        public ProductDetailWindow(ProductType type, int productId, bool startInEditMode = false)
         {
             InitializeComponent();
 
@@ -31,7 +34,18 @@ namespace DEPO_DURUMU
             TitleText.Text = type.Name + " - Ürün Detayı";
 
             _properties = TypePropertyRepository.GetForType(type.Id);
-            BuildViewMode();
+
+            // "Zimmet" özelliği zimmet kayıtlarından hesaplanır; elle düzenlenmez.
+            _editable = _properties.Where(p => !PropertyDefinitionRepository.IsZimmet(p)).ToList();
+
+            if (startInEditMode)
+            {
+                BuildEditMode();
+            }
+            else
+            {
+                BuildViewMode();
+            }
         }
 
         /// <summary>
@@ -43,6 +57,7 @@ namespace DEPO_DURUMU
             _editInputs.Clear();
 
             var values = ProductRepository.GetValues(_productId);
+            var zimmetSummary = AssignmentRepository.GetActiveSummaryByProduct();
 
             FieldsPanel.Children.Add(new TextBlock
             {
@@ -64,19 +79,33 @@ namespace DEPO_DURUMU
                     Margin = new Thickness(0, 8, 0, 2)
                 };
 
-                var value = values.ContainsKey(property.Id) ? values[property.Id] : "";
+                string value;
+                string emptyText = "(boş)";
+
+                if (PropertyDefinitionRepository.IsZimmet(property))
+                {
+                    if (!zimmetSummary.TryGetValue(_productId, out value))
+                    {
+                        value = "";
+                    }
+
+                    emptyText = "Zimmette değil";
+                }
+                else
+                {
+                    value = values.ContainsKey(property.Id) ? values[property.Id] : "";
+                }
+
                 var valueText = new TextBlock
                 {
-                    Text = string.IsNullOrEmpty(value) ? "(boş)" : value
+                    Text = string.IsNullOrEmpty(value) ? emptyText : value
                 };
 
                 FieldsPanel.Children.Add(label);
                 FieldsPanel.Children.Add(valueText);
             }
 
-            EditButton.Visibility = Visibility.Visible;
             SaveButton.Visibility = Visibility.Collapsed;
-            HandoverButton.Visibility = Visibility.Visible;
         }
 
         /// <summary>
@@ -84,6 +113,7 @@ namespace DEPO_DURUMU
         /// </summary>
         private void BuildEditMode()
         {
+            TitleText.Text = _type.Name + " - Ürünü Düzenle";
             FieldsPanel.Children.Clear();
             _editInputs.Clear();
 
@@ -104,7 +134,7 @@ namespace DEPO_DURUMU
             };
             FieldsPanel.Children.Add(_quantityInput);
 
-            foreach (var property in _properties)
+            foreach (var property in _editable)
             {
                 var label = new TextBlock
                 {
@@ -122,14 +152,7 @@ namespace DEPO_DURUMU
                 FieldsPanel.Children.Add(input);
             }
 
-            EditButton.Visibility = Visibility.Collapsed;
             SaveButton.Visibility = Visibility.Visible;
-            HandoverButton.Visibility = Visibility.Collapsed;
-        }
-
-        private void EditButton_Click(object sender, RoutedEventArgs e)
-        {
-            BuildEditMode();
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -154,7 +177,7 @@ namespace DEPO_DURUMU
             }
 
             // Seri No gibi tekil olması gereken özellikleri kaydetmeden önce kontrol et.
-            foreach (var property in _properties)
+            foreach (var property in _editable)
             {
                 if (!property.IsSerialNumber)
                 {
@@ -188,7 +211,7 @@ namespace DEPO_DURUMU
             var oldValues = ProductRepository.GetValues(_productId);
             var oldQuantity = ProductRepository.GetQuantity(_productId);
 
-            foreach (var property in _properties)
+            foreach (var property in _editable)
             {
                 var value = DynamicFieldFactory.ReadValue(property.DataType, _editInputs[property.Id]);
                 ProductRepository.SetValue(_productId, property.Id, value);
@@ -213,7 +236,7 @@ namespace DEPO_DURUMU
             }
 
             Changed = true;
-            BuildViewMode();
+            DialogResult = true;
         }
 
         /// <summary>
@@ -242,61 +265,6 @@ namespace DEPO_DURUMU
             }
 
             return string.Join(" | ", parts);
-        }
-
-        // ---------- TESLİM-TESELLÜM ----------
-
-        /// <summary>Teslim-Tesellüm tutanağını, ilk satırı bu ürünün seri no ve sistem ismiyle dolu olarak açar.</summary>
-        private void HandoverButton_Click(object sender, RoutedEventArgs e)
-        {
-            var values = ProductRepository.GetValues(_productId);
-
-            var serialProperty = _properties.FirstOrDefault(p => p.IsSerialNumber);
-            var serialNo = serialProperty != null && values.ContainsKey(serialProperty.Id)
-                ? values[serialProperty.Id]
-                : "";
-
-            var systemProperty = _properties.FirstOrDefault(p => p.Name == SystemNameFieldName);
-            var systemName = systemProperty != null && values.ContainsKey(systemProperty.Id)
-                ? values[systemProperty.Id]
-                : "";
-
-            if (string.IsNullOrWhiteSpace(systemName))
-            {
-                systemName = _type.Name;
-            }
-
-            var window = new HandoverWindow(serialNo, systemName) { Owner = this };
-            window.ShowDialog();
-        }
-
-        private void DeleteButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (AssignmentRepository.GetActiveQuantity(_productId) > 0)
-            {
-                MessageBox.Show(
-                    "Bu ürün zimmette olduğu için silinemez. Önce Zimmetler ekranından iade alın.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            var result = MessageBox.Show(
-                "Bu ürünü silmek istediğine emin misin?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-            if (result != MessageBoxResult.Yes)
-            {
-                return;
-            }
-
-            var descriptionBeforeDelete = BuildDescription(
-                ProductRepository.GetValues(_productId), ProductRepository.GetQuantity(_productId));
-
-            ProductRepository.Delete(_productId);
-            LogRepository.Add(_type.Name, descriptionBeforeDelete, "Silindi");
-
-            Changed = true;
-            DialogResult = true;
         }
 
         /// <summary>

@@ -55,6 +55,7 @@ namespace DEPO_DURUMU
         {
             InitializeComponent();
             PreviewMouseLeftButtonDown += MainWindow_PreviewMouseLeftButtonDown;
+            ProductGrid.PreviewMouseRightButtonDown += ProductGrid_PreviewMouseRightButtonDown;
             ShowHome();
         }
 
@@ -478,6 +479,8 @@ namespace DEPO_DURUMU
             var products = ProductRepository.GetForType(type.Id);
             _currentProducts = products;
 
+            var zimmetSummary = AssignmentRepository.GetActiveSummaryByProduct();
+
             var rowNumber = 0;
             foreach (var product in products)
             {
@@ -492,7 +495,15 @@ namespace DEPO_DURUMU
 
                 foreach (var property in properties)
                 {
-                    row[property.Name] = values.ContainsKey(property.Id) ? values[property.Id] : "";
+                    if (PropertyDefinitionRepository.IsZimmet(property))
+                    {
+                        string zimmetText;
+                        row[property.Name] = zimmetSummary.TryGetValue(product.Id, out zimmetText) ? zimmetText : "";
+                    }
+                    else
+                    {
+                        row[property.Name] = values.ContainsKey(property.Id) ? values[property.Id] : "";
+                    }
                 }
                 table.Rows.Add(row);
             }
@@ -659,6 +670,20 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            DeleteProducts(toDelete);
+        }
+
+        /// <summary>
+        /// Verilen ürünleri siler (onay sorar). Zimmetteki ürünler silinmez, atlanır.
+        /// Hem soldaki toplu "Sil" düğmesi hem de sağ tık menüsü bunu kullanır.
+        /// </summary>
+        private void DeleteProducts(List<int> toDelete)
+        {
+            if (_currentType == null || toDelete == null || toDelete.Count == 0)
+            {
+                return;
+            }
+
             // Zimmetteki ürünler silinemez: önce zimmet iade alınmalı.
             var assignedToSkip = toDelete.Where(id => AssignmentRepository.GetActiveQuantity(id) > 0).ToList();
             if (assignedToSkip.Count > 0)
@@ -694,6 +719,210 @@ namespace DEPO_DURUMU
                 ProductRepository.Delete(productId);
                 LogRepository.Add(_currentType.Name, description, "Silindi");
             }
+
+            LoadProductGrid(_currentType);
+        }
+
+        // ---------- SAĞ TIK MENÜSÜ ----------
+
+        /// <summary>
+        /// Ürün satırına sağ tıklanınca menüyü hazırlar. İşaretli (onay kutulu) birden fazla ürün varsa
+        /// ve sağ tıklanan satır da işaretliyse menü işaretli hepsi için, değilse sadece o satır için çalışır.
+        /// </summary>
+        private void ProductGrid_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            ProductGrid.ContextMenu = null;
+
+            if (_currentType == null)
+            {
+                return;
+            }
+
+            DataGridRow row = null;
+            var element = e.OriginalSource as DependencyObject;
+
+            while (element != null)
+            {
+                row = element as DataGridRow;
+                if (row != null)
+                {
+                    break;
+                }
+
+                element = VisualTreeHelper.GetParent(element);
+            }
+
+            var rowView = row == null ? null : row.Item as DataRowView;
+            if (rowView == null)
+            {
+                return;
+            }
+
+            var checkedIds = new List<int>();
+            var view = ProductGrid.ItemsSource as DataView;
+            if (view != null)
+            {
+                foreach (DataRowView candidate in view)
+                {
+                    if ((bool)candidate[SelectedColumnName])
+                    {
+                        checkedIds.Add((int)candidate[IdColumnName]);
+                    }
+                }
+            }
+
+            List<int> targets;
+            if ((bool)rowView[SelectedColumnName] && checkedIds.Count > 1)
+            {
+                targets = checkedIds;
+            }
+            else
+            {
+                targets = new List<int> { (int)rowView[IdColumnName] };
+                ProductGrid.SelectedItem = rowView;
+            }
+
+            ProductGrid.ContextMenu = BuildProductContextMenu(targets);
+        }
+
+        private ContextMenu BuildProductContextMenu(List<int> productIds)
+        {
+            var menu = new ContextMenu();
+            var multiple = productIds.Count > 1;
+            var suffix = multiple ? " (" + productIds.Count + " ürün)" : "";
+
+            if (!multiple)
+            {
+                var edit = new MenuItem { Header = "Düzenle" };
+                edit.Click += (s, e) => EditProduct(productIds[0]);
+                menu.Items.Add(edit);
+            }
+
+            var handover = new MenuItem { Header = "Teslim-Tesellüm oluştur" + suffix };
+            handover.Click += (s, e) => CreateHandoverFor(productIds);
+            menu.Items.Add(handover);
+
+            // Zimmetle, sadece "Zimmet" özelliği eklenmiş cinslerde görünür.
+            if (_currentProperties.Any(p => PropertyDefinitionRepository.IsZimmet(p)))
+            {
+                var assign = new MenuItem { Header = "Zimmetle" + suffix };
+                assign.Click += (s, e) => AssignProducts(productIds);
+                menu.Items.Add(assign);
+            }
+
+            menu.Items.Add(new Separator());
+
+            var delete = new MenuItem { Header = "Sil" + suffix };
+            delete.Click += (s, e) => DeleteProducts(productIds);
+            menu.Items.Add(delete);
+
+            return menu;
+        }
+
+        private void EditProduct(int productId)
+        {
+            if (_currentType == null)
+            {
+                return;
+            }
+
+            var window = new ProductDetailWindow(_currentType, productId, true) { Owner = this };
+            window.ShowDialog();
+
+            LoadProductGrid(_currentType);
+        }
+
+        /// <summary>Ürünün Seri No ve Sistem İsmi değerlerini okur (yoksa boş metin).</summary>
+        private void ReadIdentity(int productId, out string serialNo, out string systemName)
+        {
+            var values = ProductRepository.GetValues(productId);
+
+            var serialProperty = _currentProperties.FirstOrDefault(p => p.IsSerialNumber);
+            serialNo = serialProperty != null && values.ContainsKey(serialProperty.Id)
+                ? values[serialProperty.Id]
+                : "";
+
+            var systemProperty = _currentProperties.FirstOrDefault(p => p.Name == "Sistem İsmi");
+            systemName = systemProperty != null && values.ContainsKey(systemProperty.Id)
+                ? values[systemProperty.Id]
+                : "";
+        }
+
+        /// <summary>Teslim-tesellüm tutanağını, verilen her ürün için bir satır dolu olarak açar.</summary>
+        private void CreateHandoverFor(List<int> productIds)
+        {
+            var items = new List<HandoverItem>();
+
+            foreach (var productId in productIds)
+            {
+                string serialNo;
+                string systemName;
+                ReadIdentity(productId, out serialNo, out systemName);
+
+                if (string.IsNullOrWhiteSpace(systemName))
+                {
+                    systemName = _currentType.Name;
+                }
+
+                items.Add(new HandoverItem
+                {
+                    SerialNo = serialNo,
+                    ItemType = systemName,
+                    Quantity = System.Math.Max(1, ProductRepository.GetQuantity(productId)).ToString()
+                });
+            }
+
+            var window = new HandoverWindow(items) { Owner = this };
+            window.ShowDialog();
+        }
+
+        /// <summary>
+        /// Ürünleri zimmetler. Tek ürünse miktarı sorulur; birden fazlaysa hepsi tek kişiye,
+        /// her birinin zimmetlenebilir miktarının tamamı kadar zimmetlenir. Tamamı zaten zimmette olanlar atlanır.
+        /// </summary>
+        private void AssignProducts(List<int> productIds)
+        {
+            var eligible = productIds.Where(id => AssignmentRepository.GetAvailableQuantity(id) > 0).ToList();
+            var skipped = productIds.Count - eligible.Count;
+
+            if (eligible.Count == 0)
+            {
+                MessageBox.Show(
+                    productIds.Count == 1
+                        ? "Bu ürünün tamamı zaten zimmette."
+                        : "Seçili ürünlerin tamamı zaten zimmette.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            if (skipped > 0)
+            {
+                MessageBox.Show(
+                    skipped + " ürünün tamamı zaten zimmette olduğu için atlanacak.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+
+            AssignWindow window;
+
+            if (eligible.Count == 1)
+            {
+                var productId = eligible[0];
+                string serialNo;
+                string systemName;
+                ReadIdentity(productId, out serialNo, out systemName);
+
+                window = new AssignWindow(
+                    productId,
+                    AssignmentRepository.DescribeProduct(_currentType.Name, systemName, serialNo),
+                    AssignmentRepository.GetAvailableQuantity(productId));
+            }
+            else
+            {
+                window = new AssignWindow(eligible, eligible.Count + " ürün zimmetlenecek");
+            }
+
+            window.Owner = this;
+            window.ShowDialog();
 
             LoadProductGrid(_currentType);
         }

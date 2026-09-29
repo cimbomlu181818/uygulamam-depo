@@ -57,6 +57,20 @@ namespace DEPO_DURUMU
             }
         }
 
+        /// <summary>Ürün listesinde sağ tıkla açılınca, seçili her ürün için bir satır dolu gelir.</summary>
+        public HandoverWindow(IEnumerable<HandoverItem> items) : this(null, null)
+        {
+            if (items == null)
+            {
+                return;
+            }
+
+            foreach (var item in items)
+            {
+                Items.Add(item);
+            }
+        }
+
         /// <summary>Tutanaklar defterindeki kayıtlı bir tutanağı açar; yazdırılınca ya da kaydedilince aynı kayıt güncellenir.</summary>
         public HandoverWindow(Handover existing) : this(null, null)
         {

@@ -178,8 +178,16 @@ namespace DEPO_DURUMU.Data
 
         /// <summary>
         /// Uygulama ilk açıldığında, her zaman var olması gereken sabit özellikleri
-        /// (Seri No, Sistem İsmi) kütüphaneye ekler. Zaten varsa tekrar eklemez.
+        /// (Seri No, Sistem İsmi, Zimmet) kütüphaneye ekler. Zaten varsa tekrar eklemez.
         /// </summary>
+        /// <summary>Sabit "Zimmet" özelliğinin adı. Değeri ürün üzerinde saklanmaz, zimmet kayıtlarından hesaplanır.</summary>
+        public const string ZimmetName = "Zimmet";
+
+        public static bool IsZimmet(PropertyDefinition property)
+        {
+            return property != null && property.Name == ZimmetName;
+        }
+
         public static void EnsureDefaults()
         {
             using (var connection = Database.OpenConnection())
@@ -189,7 +197,9 @@ namespace DEPO_DURUMU.Data
                     "INSERT OR IGNORE INTO PropertyDefinitions (Name, DataType, IsSerialNumber) " +
                     "VALUES ('Seri No', 'Metin', 1);" +
                     "INSERT OR IGNORE INTO PropertyDefinitions (Name, DataType, IsSerialNumber) " +
-                    "VALUES ('Sistem İsmi', 'Metin', 0);";
+                    "VALUES ('Sistem İsmi', 'Metin', 0);" +
+                    "INSERT OR IGNORE INTO PropertyDefinitions (Name, DataType, IsSerialNumber) " +
+                    "VALUES ('Zimmet', 'Metin', 0);";
                 command.ExecuteNonQuery();
             }
         }

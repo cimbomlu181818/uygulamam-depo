@@ -81,6 +81,8 @@ namespace DEPO_DURUMU.Data
                 }
                 table.Columns.Add(QuantityColumn, typeof(string));
 
+                var zimmetSummary = AssignmentRepository.GetActiveSummaryByProduct();
+
                 foreach (var match in typeGroup)
                 {
                     var values = ProductRepository.GetValues(match.Key);
@@ -89,7 +91,15 @@ namespace DEPO_DURUMU.Data
                     row[ProductIdColumn] = match.Key;
                     foreach (var property in properties)
                     {
-                        row[property.Name] = values.ContainsKey(property.Id) ? values[property.Id] : "";
+                        if (PropertyDefinitionRepository.IsZimmet(property))
+                        {
+                            string zimmetText;
+                            row[property.Name] = zimmetSummary.TryGetValue(match.Key, out zimmetText) ? zimmetText : "";
+                        }
+                        else
+                        {
+                            row[property.Name] = values.ContainsKey(property.Id) ? values[property.Id] : "";
+                        }
                     }
                     row[QuantityColumn] = ProductRepository.GetQuantity(match.Key).ToString();
                     table.Rows.Add(row);

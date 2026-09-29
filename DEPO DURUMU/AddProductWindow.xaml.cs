@@ -23,7 +23,9 @@ namespace DEPO_DURUMU
             _typeName = typeName;
             TitleText.Text = "\"" + typeName + "\" - Yeni Ürün";
 
-            _properties = TypePropertyRepository.GetForType(productTypeId);
+            // "Zimmet" özelliğinin değeri elle girilmez, zimmet kayıtlarından hesaplanır.
+            _properties = TypePropertyRepository.GetForType(productTypeId)
+                .Where(p => !PropertyDefinitionRepository.IsZimmet(p)).ToList();
             BuildForm();
         }
 

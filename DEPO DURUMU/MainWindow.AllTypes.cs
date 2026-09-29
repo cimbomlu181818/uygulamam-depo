@@ -22,7 +22,7 @@ namespace DEPO_DURUMU
     // alt alta gelir. Cinste olmayan özelliğin hücresi boş kalır.
     //
     // İÇE AKTARMA: Kullanıcıya dosyanın başlıkları gösterilir; hangisinin Cins, hangisinin
-    // Seri No sütunu olduğu sorulur. Depoda olmayan cinsler ve özellikler dosyadan otomatik
+    // Seri No ve Sistem İsmi (sistem adı) sütunu olduğu sorulur. Depoda olmayan cinsler ve özellikler dosyadan otomatik
     // oluşturulur; var olan cinse dosyada dolu gelen yeni bir sütun da özellik olarak eklenir.
     // Cins hücresi boş olan satırlar atlanmaz; "Cinsi Belirsiz" adlı ortak cinse eklenir.
     // Yazmadan önce tek bir özet gösterilir ve onay istenir.
@@ -32,6 +32,7 @@ namespace DEPO_DURUMU
         private const string SiraNoHeader = "Sıra No";
         private const string AdetHeader = "Adet";
         private const string SeriNoHeader = "Seri No";
+        private const string SistemIsmiHeader = "Sistem İsmi";
         private const string TextDataType = "Metin";
 
         // İçe aktarmada Cins hücresi boş olan satırlar atlanmaz; bu adlı cinse eklenir.
@@ -241,43 +242,76 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            // 2. SORU: Seri numarası sütunu var mı? Varsa hangisi?
-            var serialAnswer = MessageBox.Show(this,
-                "Dosyada seri numarası sütunu var mı?\n\n" +
-                "Evet: var, bir sonraki adımda sütunu seçeceksin.\n" +
-                "Hayır: yok.\n" +
-                "İptal: içe aktarmayı durdur.",
-                "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            // 2. SORU: Sistem adı sütunu var mı? Varsa hangisi?
+            var systemOptions = pickable.Where(o => o.Key != cinsColumn).ToList();
+            var systemColumn = -1;
 
-            if (serialAnswer == MessageBoxResult.Cancel || serialAnswer == MessageBoxResult.None)
+            if (systemOptions.Count > 0)
             {
-                return;
-            }
+                var systemAnswer = MessageBox.Show(this,
+                    "Dosyada sistem adı (sistem ismi) sütunu var mı?\n\n" +
+                    "Evet: var, bir sonraki adımda sütunu seçeceksin.\n" +
+                    "Hayır: yok.\n" +
+                    "İptal: içe aktarmayı durdur.",
+                    "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
 
-            var serialColumn = -1;
-            if (serialAnswer == MessageBoxResult.Yes)
-            {
-                var serialOptions = pickable.Where(o => o.Key != cinsColumn).ToList();
-                if (serialOptions.Count == 0)
+                if (systemAnswer == MessageBoxResult.Cancel || systemAnswer == MessageBoxResult.None)
                 {
-                    MessageBox.Show("Cins sütunundan başka sütun yok.", "Depo Durumu",
-                        MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                serialColumn = PickColumn("Seri numarası sütunu",
-                    "Hangi sütun SERİ NUMARASINI içeriyor?\n(Değerler uygulamadaki \"Seri No\" özelliğine yazılır.)",
-                    serialOptions, FindOptionIndex(serialOptions, headers, SeriNoHeader));
-                if (serialColumn < 0)
+                if (systemAnswer == MessageBoxResult.Yes)
+                {
+                    var preselect = FindOptionIndex(systemOptions, headers, SistemIsmiHeader);
+                    if (preselect < 0)
+                    {
+                        preselect = FindOptionIndex(systemOptions, headers, "Sistem Adı");
+                    }
+
+                    systemColumn = PickColumn("Sistem adı sütunu",
+                        "Hangi sütun SİSTEM ADINI içeriyor?\n(Değerler uygulamadaki \"Sistem İsmi\" özelliğine yazılır.)",
+                        systemOptions, preselect);
+                    if (systemColumn < 0)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            // 3. SORU: Seri numarası sütunu var mı? Varsa hangisi?
+            var serialOptions = pickable.Where(o => o.Key != cinsColumn && o.Key != systemColumn).ToList();
+            var serialColumn = -1;
+
+            if (serialOptions.Count > 0)
+            {
+                var serialAnswer = MessageBox.Show(this,
+                    "Dosyada seri numarası sütunu var mı?\n\n" +
+                    "Evet: var, bir sonraki adımda sütunu seçeceksin.\n" +
+                    "Hayır: yok.\n" +
+                    "İptal: içe aktarmayı durdur.",
+                    "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+                if (serialAnswer == MessageBoxResult.Cancel || serialAnswer == MessageBoxResult.None)
                 {
                     return;
+                }
+
+                if (serialAnswer == MessageBoxResult.Yes)
+                {
+                    serialColumn = PickColumn("Seri numarası sütunu",
+                        "Hangi sütun SERİ NUMARASINI içeriyor?\n(Değerler uygulamadaki \"Seri No\" özelliğine yazılır.)",
+                        serialOptions, FindOptionIndex(serialOptions, headers, SeriNoHeader));
+                    if (serialColumn < 0)
+                    {
+                        return;
+                    }
                 }
             }
 
             // Sütunları özelliklerle eşleştir, cinslere göre satırları grupla.
             var ignoredColumns = new List<string>();
             int quantityColumn;
-            var columns = BuildImportColumns(rows, headers, cinsColumn, serialColumn, out quantityColumn, ignoredColumns);
+            var columns = BuildImportColumns(rows, headers, cinsColumn, serialColumn, systemColumn, out quantityColumn, ignoredColumns);
 
             int blankTypeRows;
             var plans = BuildImportPlans(rows, cinsColumn, columns, out blankTypeRows);
@@ -290,7 +324,8 @@ namespace DEPO_DURUMU
             }
 
             // Yazmadan önce tek bir özet göster, onay iste.
-            if (!ConfirmImport(plans, columns, serialColumn >= 0 ? headers[serialColumn] : null, blankTypeRows))
+            if (!ConfirmImport(plans, columns, serialColumn >= 0 ? headers[serialColumn] : null,
+                systemColumn >= 0 ? headers[systemColumn] : null, blankTypeRows))
             {
                 return;
             }
@@ -364,7 +399,7 @@ namespace DEPO_DURUMU
         /// sütunları özellik sayılmaz. Hiç dolu hücresi olmayan sütunlar dışarıda bırakılır.
         /// </summary>
         private List<ImportColumn> BuildImportColumns(List<string[]> rows, string[] headers, int cinsColumn,
-            int serialColumn, out int quantityColumn, List<string> ignoredColumns)
+            int serialColumn, int systemColumn, out int quantityColumn, List<string> ignoredColumns)
         {
             quantityColumn = -1;
 
@@ -378,10 +413,19 @@ namespace DEPO_DURUMU
 
             var serialName = serialProperty != null ? serialProperty.Name : SeriNoHeader;
 
+            // Sistem adı sütununun yazılacağı özellik: uygulamadaki sabit "Sistem İsmi".
+            var systemProperty = library.FirstOrDefault(p =>
+                string.Equals(p.Name, SistemIsmiHeader, StringComparison.OrdinalIgnoreCase));
+            var systemName = systemProperty != null ? systemProperty.Name : SistemIsmiHeader;
+
             var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             if (serialColumn >= 0)
             {
                 usedNames.Add(serialName);
+            }
+            if (systemColumn >= 0)
+            {
+                usedNames.Add(systemName);
             }
 
             var columns = new List<ImportColumn>();
@@ -403,6 +447,19 @@ namespace DEPO_DURUMU
                         PropertyName = serialName,
                         IsSerial = true,
                         Property = serialProperty,
+                        NewDataType = TextDataType
+                    });
+                    continue;
+                }
+
+                if (i == systemColumn)
+                {
+                    columns.Add(new ImportColumn
+                    {
+                        Index = i,
+                        Header = header,
+                        PropertyName = systemName,
+                        Property = systemProperty,
                         NewDataType = TextDataType
                     });
                     continue;
@@ -532,7 +589,7 @@ namespace DEPO_DURUMU
 
         /// <summary>Hiçbir şey yazmadan önce, olacakların özetini gösterir.</summary>
         private bool ConfirmImport(List<ImportTypePlan> plans, List<ImportColumn> columns,
-            string serialHeader, int blankTypeRows)
+            string serialHeader, string systemHeader, int blankTypeRows)
         {
             var text = new StringBuilder();
             text.AppendLine("Dosyadan " + plans.Sum(p => p.Rows.Count) + " ürün satırı okundu.");
@@ -582,6 +639,13 @@ namespace DEPO_DURUMU
                 text.AppendLine("Seri numarası: \"" + serialHeader + "\" sütunu, \"" +
                                 (serialColumnItem != null ? serialColumnItem.PropertyName : SeriNoHeader) +
                                 "\" özelliğine yazılacak. Aynı seri no'lu ürünler eklenmez.");
+            }
+
+            if (systemHeader != null)
+            {
+                text.AppendLine();
+                text.AppendLine("Sistem adı: \"" + systemHeader + "\" sütunu, \"" + SistemIsmiHeader +
+                                "\" özelliğine yazılacak.");
             }
 
             if (blankTypeRows > 0)

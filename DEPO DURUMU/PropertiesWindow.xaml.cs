@@ -407,12 +407,12 @@ namespace DEPO_DURUMU
         }
 
         /// <summary>
-        /// "Seri No" ve "Sistem İsmi" her zaman var olması gereken sabit özelliklerdir;
+        /// "Seri No", "Sistem İsmi" ve "Zimmet" her zaman var olması gereken sabit özelliklerdir;
         /// yeniden adlandırılamaz ve silinemezler.
         /// </summary>
         private static bool IsFixedName(string name)
         {
-            return name == "Seri No" || name == "Sistem İsmi";
+            return name == "Seri No" || name == "Sistem İsmi" || name == PropertyDefinitionRepository.ZimmetName;
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
