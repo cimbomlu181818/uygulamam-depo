@@ -18,8 +18,12 @@
                 <MenuItem Header="Ürün Cinsleri" Click="TypesMenu_Click" />
                 <MenuItem Header="Özellikler" Click="PropertiesMenu_Click" />
                 <MenuItem Header="Log" Click="LogMenu_Click" />
+                <MenuItem Header="Tüm Cinsleri Dışa Aktar (CSV)..." Click="ExportAllTypesMenu_Click" />
+                <MenuItem Header="Tüm Cinsleri İçe Aktar (CSV)..." Click="ImportAllTypesMenu_Click" />
                 <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
                 <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
+                <Separator />
+                <MenuItem Header="Tüm Verileri Sıfırla..." Foreground="#B00020" Click="ResetMenu_Click" />
             </MenuItem>
             <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
             <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />

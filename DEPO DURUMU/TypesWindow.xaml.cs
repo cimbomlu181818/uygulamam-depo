@@ -1,5 +1,10 @@
-﻿using System.Globalization;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data.SQLite;
+using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using DEPO_DURUMU.Data;
 
@@ -7,16 +12,141 @@ namespace DEPO_DURUMU
 {
     public partial class TypesWindow : Window
     {
+        /// <summary>Listedeki bir satır: cins + işaret kutusunun durumu.</summary>
+        public class TypeRow : INotifyPropertyChanged
+        {
+            private bool _isChecked;
+
+            public int Id { get; set; }
+            public string Name { get; set; }
+            public int ProductCount { get; set; }
+
+            /// <summary>Adın yanında gri görünen bilgi: kaç ürünü var.</summary>
+            public string Info
+            {
+                get
+                {
+                    return ProductCount > 0
+                        ? "(" + ProductCount.ToString("N0", CultureInfo.CurrentCulture) + " ürün)"
+                        : "(ürün yok)";
+                }
+            }
+
+            public bool IsChecked
+            {
+                get { return _isChecked; }
+                set
+                {
+                    if (_isChecked == value)
+                    {
+                        return;
+                    }
+
+                    _isChecked = value;
+                    if (PropertyChanged != null)
+                    {
+                        PropertyChanged(this, new PropertyChangedEventArgs("IsChecked"));
+                    }
+                }
+            }
+
+            public event PropertyChangedEventHandler PropertyChanged;
+        }
+
         public TypesWindow()
         {
             InitializeComponent();
-            LoadTypes();
+            LoadTypes(false);
         }
 
-        private void LoadTypes()
+        /// <summary>Listeyi yeniler. keepChecks doğruysa daha önce işaretli olanlar işaretli kalır.</summary>
+        private void LoadTypes(bool keepChecks = true)
         {
-            TypeList.ItemsSource = null;
-            TypeList.ItemsSource = ProductTypeRepository.GetAll();
+            var checkedIds = new HashSet<int>();
+            var currentRows = TypeList.ItemsSource as List<TypeRow>;
+            if (keepChecks && currentRows != null)
+            {
+                foreach (var oldRow in currentRows)
+                {
+                    if (oldRow.IsChecked)
+                    {
+                        checkedIds.Add(oldRow.Id);
+                    }
+                }
+            }
+
+            var counts = LoadProductCounts();
+            var rows = new List<TypeRow>();
+
+            foreach (var type in ProductTypeRepository.GetAll())
+            {
+                int count;
+                counts.TryGetValue(type.Id, out count);
+
+                var row = new TypeRow
+                {
+                    Id = type.Id,
+                    Name = type.Name,
+                    ProductCount = count,
+                    IsChecked = checkedIds.Contains(type.Id)
+                };
+                row.PropertyChanged += (sender, args) => UpdateSelectedCount();
+                rows.Add(row);
+            }
+
+            TypeList.ItemsSource = rows;
+            UpdateSelectedCount();
+        }
+
+        private static Dictionary<int, int> LoadProductCounts()
+        {
+            var counts = new Dictionary<int, int>();
+
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = "SELECT ProductTypeId, COUNT(*) FROM Products GROUP BY ProductTypeId;";
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        counts[Convert.ToInt32(reader.GetValue(0))] = Convert.ToInt32(reader.GetValue(1));
+                    }
+                }
+            }
+
+            return counts;
+        }
+
+        private void UpdateSelectedCount()
+        {
+            var rows = TypeList.ItemsSource as List<TypeRow>;
+            var count = rows == null ? 0 : rows.Count(r => r.IsChecked);
+            SelectedCountText.Text = count + " seçili";
+        }
+
+        private void SelectAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            SetAllChecked(true);
+        }
+
+        private void ClearAllButton_Click(object sender, RoutedEventArgs e)
+        {
+            SetAllChecked(false);
+        }
+
+        private void SetAllChecked(bool value)
+        {
+            var rows = TypeList.ItemsSource as List<TypeRow>;
+            if (rows == null)
+            {
+                return;
+            }
+
+            foreach (var row in rows)
+            {
+                row.IsChecked = value;
+            }
         }
 
         private void AddTypeButton_Click(object sender, RoutedEventArgs e)
@@ -63,10 +193,10 @@ namespace DEPO_DURUMU
 
         private void RenameTypeButton_Click(object sender, RoutedEventArgs e)
         {
-            var selected = TypeList.SelectedItem as ProductType;
+            var selected = TypeList.SelectedItem as TypeRow;
             if (selected == null)
             {
-                MessageBox.Show("Önce listeden bir ürün cinsi seçin.", "Depo Durumu",
+                MessageBox.Show("Önce listeden bir ürün cinsi seçin (adına tıklayın).", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -83,41 +213,183 @@ namespace DEPO_DURUMU
             LoadTypes();
         }
 
-        private void DeleteTypeButton_Click(object sender, RoutedEventArgs e)
+        // ---------- TOPLU SİLME ----------
+
+        private void DeleteSelectedButton_Click(object sender, RoutedEventArgs e)
         {
-            var selected = TypeList.SelectedItem as ProductType;
-            if (selected == null)
+            var rows = TypeList.ItemsSource as List<TypeRow>;
+            var selected = rows == null ? new List<TypeRow>() : rows.Where(r => r.IsChecked).ToList();
+
+            if (selected.Count == 0)
             {
-                MessageBox.Show("Önce listeden bir ürün cinsi seçin.", "Depo Durumu",
+                MessageBox.Show("Önce silmek istediğin cinsleri işaretle.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            var result = MessageBox.Show(
-                "\"" + selected.Name + "\" ürün cinsini silmek istediğine emin misin?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var alsoProducts = DeleteProductsCheck.IsChecked == true;
+            var totalProducts = selected.Sum(r => r.ProductCount);
 
-            if (result != MessageBoxResult.Yes)
+            var question = new StringBuilder();
+            question.AppendLine(selected.Count + " ürün cinsi silinecek:");
+            question.AppendLine(string.Join(", ", selected.Take(10).Select(r => r.Name)) +
+                                (selected.Count > 10 ? " ... (+" + (selected.Count - 10) + " tane daha)" : ""));
+            question.AppendLine();
+
+            if (alsoProducts)
+            {
+                if (totalProducts > 0)
+                {
+                    question.AppendLine("DİKKAT: Bu cinslerdeki toplam " +
+                                        totalProducts.ToString("N0", CultureInfo.CurrentCulture) +
+                                        " ürün de silinecek. Bu işlem geri alınamaz.");
+                }
+                else
+                {
+                    question.AppendLine("Seçili cinslerde ürün yok.");
+                }
+                question.AppendLine("Zimmette ürünü olan cinsler silinmez.");
+            }
+            else if (totalProducts > 0)
+            {
+                question.AppendLine("İçinde ürün olan cinsler silinmeden atlanır.");
+            }
+
+            question.AppendLine();
+            question.AppendLine("Devam edilsin mi?");
+
+            var answer = MessageBox.Show(this, question.ToString(), "Depo Durumu",
+                MessageBoxButton.YesNo,
+                alsoProducts && totalProducts > 0 ? MessageBoxImage.Warning : MessageBoxImage.Question,
+                MessageBoxResult.No);
+
+            if (answer != MessageBoxResult.Yes)
             {
                 return;
             }
 
-            var deleted = ProductTypeRepository.Delete(selected.Id);
-            if (deleted)
-            {
-                LogRepository.Add(selected.Name, "", "Cins silindi");
-            }
+            var deleted = new List<string>();
+            var skipped = new List<string>();
+            var logs = new List<string[]>();
+            var productsDeleted = 0;
 
-            if (!deleted)
+            try
             {
-                MessageBox.Show(
-                    "\"" + selected.Name + "\" cinsine ait ürünler olduğu için silinemiyor.\n\n" +
-                    "Önce o cinse ait tüm ürünleri silin, sonra tekrar deneyin.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                // Hepsi tek işlemde: hata olursa hiçbir şey silinmez.
+                using (var connection = Database.OpenConnection())
+                using (var transaction = connection.BeginTransaction())
+                {
+                    foreach (var row in selected)
+                    {
+                        var productCount = Convert.ToInt32(Scalar(connection,
+                            "SELECT COUNT(*) FROM Products WHERE ProductTypeId = @id;", row.Id));
+
+                        if (productCount > 0)
+                        {
+                            if (!alsoProducts)
+                            {
+                                skipped.Add(row.Name + " (içinde " + productCount.ToString("N0", CultureInfo.CurrentCulture) + " ürün var)");
+                                continue;
+                            }
+
+                            // Zimmette olan ürün silinemez (uygulamadaki mevcut kural).
+                            var assigned = Convert.ToInt32(Scalar(connection,
+                                "SELECT COALESCE(SUM(Quantity), 0) FROM Assignments " +
+                                "WHERE IsReturned = 0 AND ProductId IN " +
+                                "(SELECT Id FROM Products WHERE ProductTypeId = @id);", row.Id));
+                            if (assigned > 0)
+                            {
+                                skipped.Add(row.Name + " (zimmette ürünü var)");
+                                continue;
+                            }
+
+                            Run(connection,
+                                "DELETE FROM ProductValues WHERE ProductId IN " +
+                                "(SELECT Id FROM Products WHERE ProductTypeId = @id); " +
+                                "DELETE FROM Products WHERE ProductTypeId = @id;", row.Id);
+                            productsDeleted += productCount;
+
+                            logs.Add(new[] { row.Name, productCount + " ürün (cinsle birlikte)", "Silindi" });
+                        }
+
+                        Run(connection,
+                            "DELETE FROM TypeProperties WHERE ProductTypeId = @id; " +
+                            "DELETE FROM HomeStatistics WHERE ProductTypeId = @id; " +
+                            "DELETE FROM ProductTypes WHERE Id = @id;", row.Id);
+
+                        deleted.Add(row.Name);
+                        logs.Add(new[] { row.Name, "", "Cins silindi" });
+                    }
+
+                    transaction.Commit();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this,
+                    "Silme işlemi tamamlanamadı; hiçbir şey silinmedi.\n\nNeden: " + ex.Message,
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                LoadTypes(false);
                 return;
             }
 
-            LoadTypes();
+            foreach (var log in logs)
+            {
+                try
+                {
+                    LogRepository.Add(log[0], log[1], log[2]);
+                }
+                catch (Exception)
+                {
+                    // Günlük yazılamadıysa silme işlemi zaten tamamlandı; sessizce devam et.
+                }
+            }
+
+            var message = new StringBuilder();
+            message.AppendLine(deleted.Count + " ürün cinsi silindi.");
+            if (productsDeleted > 0)
+            {
+                message.AppendLine(productsDeleted.ToString("N0", CultureInfo.CurrentCulture) + " ürün de silindi.");
+            }
+            if (skipped.Count > 0)
+            {
+                message.AppendLine();
+                message.AppendLine("Silinemeyenler (" + skipped.Count + "):");
+                foreach (var item in skipped.Take(10))
+                {
+                    message.AppendLine("   • " + item);
+                }
+                if (skipped.Count > 10)
+                {
+                    message.AppendLine("   ... ve " + (skipped.Count - 10) + " tane daha");
+                }
+            }
+
+            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Durumu",
+                MessageBoxButton.OK, skipped.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
+
+            DeleteProductsCheck.IsChecked = false;   // kazara tekrar tehlikeli silme olmasın
+            LoadTypes(false);
+        }
+
+        private static object Scalar(SQLiteConnection connection, string sql, int id)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = sql;
+                command.Parameters.Add(new SQLiteParameter("@id", id));
+                return command.ExecuteScalar();
+            }
+        }
+
+        private static void Run(SQLiteConnection connection, string sql, int id)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = sql;
+                command.Parameters.Add(new SQLiteParameter("@id", id));
+                command.ExecuteNonQuery();
+            }
         }
 
         private void CloseButton_Click(object sender, RoutedEventArgs e)
