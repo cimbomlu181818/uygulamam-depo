@@ -35,6 +35,10 @@ namespace DEPO_DURUMU
         // Seçili filtreler: alan numarası -> seçilen değerler.
         private readonly Dictionary<int, HashSet<string>> _selected = new Dictionary<int, HashSet<string>>();
 
+        // Filtre çubuğunda kullanıcının açtığı özellik başlıkları (özellik numarası).
+        // Cins sayfası ilk açıldığında boştur, yani tüm başlıklar kapalı gelir.
+        private readonly HashSet<int> _openFilterIds = new HashSet<int>();
+
         // Ana sayfadaki istatistik kutuları ve sürükleme başlangıç noktası.
         private List<HomeStatisticCard> _homeStatisticCards = new List<HomeStatisticCard>();
         private Point _dragStartPoint;
@@ -86,6 +90,7 @@ namespace DEPO_DURUMU
         private void ShowHome()
         {
             CloseHomeSearch();
+            TypeFilterBox.Text = "";
             LoadProductTypes();
             LoadHomeStatistics();
             LoadRecentLog();
@@ -95,11 +100,70 @@ namespace DEPO_DURUMU
             _currentType = null;
         }
 
+        // Veritabanındaki tüm cinsler; "Cinste ara" kutusu bu listeyi süzer.
+        private List<ProductType> _allTypes = new List<ProductType>();
+
         private void LoadProductTypes()
         {
+            _allTypes = ProductTypeRepository.GetAll();
+            ApplyTypeFilter();
+        }
+
+        /// <summary>
+        /// "Cinste ara" kutusuna yazılan harflerle başlayan cinsleri listeler.
+        /// Kutu boşsa tüm cinsler görünür. Büyük/küçük harf ve Türkçe I/İ farkı önemsenmez.
+        /// </summary>
+        private void ApplyTypeFilter()
+        {
+            var text = (TypeFilterBox.Text ?? "").Trim();
+            var turkish = new CultureInfo("tr-TR");
+
+            IEnumerable<ProductType> items = _allTypes;
+            if (text.Length > 0)
+            {
+                items = _allTypes.Where(t => WordStartsWith(t.Name, text, turkish));
+            }
+
             ProductTypeList.ItemsSource = null;
             ProductTypeList.DisplayMemberPath = "Name";
-            ProductTypeList.ItemsSource = ProductTypeRepository.GetAll();
+            ProductTypeList.ItemsSource = items.ToList();
+        }
+
+        /// <summary>
+        /// Cins adının herhangi bir kelimesi yazılan harflerle başlıyorsa true verir.
+        /// Örn. "b" yazınca hem "Bilgisayar" hem "Kişisel Bilgisayar" eşleşir.
+        /// </summary>
+        private static bool WordStartsWith(string name, string text, CultureInfo culture)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+
+            for (int i = 0; i < name.Length; i++)
+            {
+                // Sadece bir kelimenin başlangıcında (en başta ya da harf/rakam olmayan karakterden sonra) kontrol et.
+                if (i > 0 && char.IsLetterOrDigit(name[i - 1]))
+                {
+                    continue;
+                }
+
+                if (culture.CompareInfo.IsPrefix(name.Substring(i), text, CompareOptions.IgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void TypeFilterBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            TypeFilterPlaceholder.Visibility = string.IsNullOrEmpty(TypeFilterBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            ApplyTypeFilter();
         }
 
         /// <summary>Ana sayfadaki "Son işlem yapılan cihazlar" tablosunu, kayıt defterinin son 20 satırıyla doldurur.</summary>
@@ -369,8 +433,9 @@ namespace DEPO_DURUMU
             TypePageTitle.Text = type.Name;
             TypeSearchBox.Text = "";
 
-            // Eski arama ve filtreler temizlenir.
+            // Eski arama ve filtreler temizlenir; filtre başlıkları yine kapalı başlar.
             _selected.Clear();
+            _openFilterIds.Clear();
             ShowNormalBar();
 
             HomePage.Visibility = Visibility.Collapsed;
@@ -1224,13 +1289,22 @@ namespace DEPO_DURUMU
                     content.Children.Add(box);
                 }
 
-                FilterItemsPanel.Children.Add(new Expander
+                var propertyId = property.Id;
+
+                var expander = new Expander
                 {
                     Header = property.Name,
-                    IsExpanded = true,
+                    IsExpanded = _openFilterIds.Contains(propertyId),
                     Margin = new Thickness(0, 0, 0, 6),
                     Content = content
-                });
+                };
+
+                // Kullanıcı bir başlığı açarsa, ürün ekleme/silme gibi işlemlerden sonra
+                // filtre çubuğu yeniden kurulduğunda o başlık açık kalır.
+                expander.Expanded += (s, e) => _openFilterIds.Add(propertyId);
+                expander.Collapsed += (s, e) => _openFilterIds.Remove(propertyId);
+
+                FilterItemsPanel.Children.Add(expander);
             }
 
             if (!anyProperty)

@@ -62,6 +62,19 @@
                                TextWrapping="Wrap"
                                Margin="0,0,0,5" />
 
+                    <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                        <TextBox x:Name="TypeFilterBox"
+                                 Height="26"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="TypeFilterBox_TextChanged" />
+                        <TextBlock x:Name="TypeFilterPlaceholder"
+                                   Text="Cinste ara"
+                                   Foreground="Gray"
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center"
+                                   IsHitTestVisible="False" />
+                    </Grid>
+
                     <ListBox x:Name="ProductTypeList"
                              MouseDoubleClick="ProductTypeList_MouseDoubleClick" />
                 </DockPanel>
