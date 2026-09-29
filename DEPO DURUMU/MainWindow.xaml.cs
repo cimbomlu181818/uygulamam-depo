@@ -22,7 +22,6 @@ namespace DEPO_DURUMU
         private const string SelectedColumnName = "__Selected";
         private const string IdColumnName = "__ProductId";
         private const string QuantityColumnName = "__Quantity";
-        private const string ZimmetColumnName = "__Zimmet";
 
         private ProductType _currentType;
 
@@ -196,7 +195,7 @@ namespace DEPO_DURUMU
             window.ShowDialog();
         }
 
-        /// <summary>Zimmet değişmiş olabilir; bir ürün cinsi sayfası açıksa tablodaki "Zimmet" sütunu tazelenir.</summary>
+        /// <summary>Zimmetler ekranında bir şey değişmiş olabilir; bir ürün cinsi sayfası açıksa tablo tazelenir.</summary>
         private void RefreshTypePageIfOpen()
         {
             if (_currentType != null && TypePage.Visibility == Visibility.Visible)
@@ -466,7 +465,6 @@ namespace DEPO_DURUMU
             table.Columns.Add(SelectedColumnName, typeof(bool));
             table.Columns.Add(IdColumnName, typeof(int));
             table.Columns.Add(QuantityColumnName, typeof(int));
-            table.Columns.Add(ZimmetColumnName, typeof(string));
 
             foreach (var property in properties)
             {
@@ -480,8 +478,6 @@ namespace DEPO_DURUMU
             var products = ProductRepository.GetForType(type.Id);
             _currentProducts = products;
 
-            var zimmetSummary = AssignmentRepository.GetActiveSummaryByProduct();
-
             var rowNumber = 0;
             foreach (var product in products)
             {
@@ -493,9 +489,6 @@ namespace DEPO_DURUMU
                 row[SelectedColumnName] = false;
                 row[IdColumnName] = product.Id;
                 row[QuantityColumnName] = product.Quantity;
-
-                string zimmetText;
-                row[ZimmetColumnName] = zimmetSummary.TryGetValue(product.Id, out zimmetText) ? zimmetText : "";
 
                 foreach (var property in properties)
                 {
@@ -549,21 +542,14 @@ namespace DEPO_DURUMU
                 IsReadOnly = true
             });
 
-            ProductGrid.Columns.Add(new DataGridTextColumn
-            {
-                Header = "Zimmet",
-                Binding = new Binding(ZimmetColumnName),
-                Width = new DataGridLength(130),
-                IsReadOnly = true
-            });
-
             foreach (var property in properties)
             {
                 ProductGrid.Columns.Add(new DataGridTextColumn
                 {
                     Header = property.Name,
                     Binding = new Binding(property.Name),
-                    Width = new DataGridLength(140)
+                    Width = new DataGridLength(140),
+                    IsReadOnly = true
                 });
             }
         }

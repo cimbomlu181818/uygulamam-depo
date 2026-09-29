@@ -17,7 +17,7 @@ namespace DEPO_DURUMU
         private TextBox _quantityInput;
 
         /// <summary>
-        /// Pencerede bir şey değiştiyse (düzenlendi, silindi ya da zimmetlendi) true olur.
+        /// Pencerede bir şey değiştiyse (düzenlendi ya da silindi) true olur.
         /// Pencereyi açan ekran buna bakıp tabloyu yeniler.
         /// </summary>
         public bool Changed { get; private set; }
@@ -35,7 +35,7 @@ namespace DEPO_DURUMU
         }
 
         /// <summary>
-        /// Ürün bilgilerini sadece okunur olarak gösterir; altında zimmet durumu görünür.
+        /// Ürün bilgilerini sadece okunur olarak gösterir.
         /// </summary>
         private void BuildViewMode()
         {
@@ -74,72 +74,9 @@ namespace DEPO_DURUMU
                 FieldsPanel.Children.Add(valueText);
             }
 
-            AddAssignmentSection();
-
             EditButton.Visibility = Visibility.Visible;
             SaveButton.Visibility = Visibility.Collapsed;
-            AssignButton.Visibility = Visibility.Visible;
             HandoverButton.Visibility = Visibility.Visible;
-        }
-
-        /// <summary>Ürünün şu an kimde olduğunu gösterir; her zimmetin yanında tutanak yazdırma düğmesi vardır.</summary>
-        private void AddAssignmentSection()
-        {
-            FieldsPanel.Children.Add(new TextBlock
-            {
-                Text = "Zimmet",
-                FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, 14, 0, 2)
-            });
-
-            var active = AssignmentRepository.GetActiveForProduct(_productId);
-
-            if (active.Count == 0)
-            {
-                FieldsPanel.Children.Add(new TextBlock { Text = "Zimmette değil", Foreground = System.Windows.Media.Brushes.Gray });
-                return;
-            }
-
-            foreach (var assignment in active)
-            {
-                var line = new DockPanel { Margin = new Thickness(0, 2, 0, 2) };
-
-                var printButton = new Button
-                {
-                    Content = "Tutanak Yazdır",
-                    Width = 100,
-                    Height = 24,
-                    Tag = assignment
-                };
-                printButton.Click += PrintAssignmentButton_Click;
-                DockPanel.SetDock(printButton, Dock.Right);
-                line.Children.Add(printButton);
-
-                var text = assignment.PersonName;
-                if (!string.IsNullOrEmpty(assignment.Department))
-                {
-                    text += " (" + assignment.Department + ")";
-                }
-                text += " — " + assignment.Quantity + " adet, " + assignment.AssignedAtText;
-
-                line.Children.Add(new TextBlock
-                {
-                    Text = text,
-                    TextWrapping = TextWrapping.Wrap,
-                    VerticalAlignment = VerticalAlignment.Center
-                });
-
-                FieldsPanel.Children.Add(line);
-            }
-        }
-
-        private void PrintAssignmentButton_Click(object sender, RoutedEventArgs e)
-        {
-            var assignment = (sender as Button)?.Tag as Assignment;
-            if (assignment != null)
-            {
-                AssignmentReceiptPrinter.Print(this, assignment);
-            }
         }
 
         /// <summary>
@@ -187,7 +124,6 @@ namespace DEPO_DURUMU
 
             EditButton.Visibility = Visibility.Collapsed;
             SaveButton.Visibility = Visibility.Visible;
-            AssignButton.Visibility = Visibility.Collapsed;
             HandoverButton.Visibility = Visibility.Collapsed;
         }
 
@@ -308,33 +244,7 @@ namespace DEPO_DURUMU
             return string.Join(" | ", parts);
         }
 
-        // ---------- ZİMMETLE / TESLİM-TESELLÜM ----------
-
-        private void AssignButton_Click(object sender, RoutedEventArgs e)
-        {
-            var available = AssignmentRepository.GetAvailableQuantity(_productId);
-            if (available < 1)
-            {
-                MessageBox.Show(
-                    "Bu ürünün tamamı zaten zimmette. Yeniden zimmetlemek için önce iade alın.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
-
-            var description = _type.Name;
-            var summary = BuildDescription(ProductRepository.GetValues(_productId), 1);
-            if (!string.IsNullOrEmpty(summary))
-            {
-                description += " — " + summary;
-            }
-
-            var window = new AssignWindow(_productId, description, available) { Owner = this };
-            if (window.ShowDialog() == true)
-            {
-                Changed = true;
-                BuildViewMode();
-            }
-        }
+        // ---------- TESLİM-TESELLÜM ----------
 
         /// <summary>Teslim-Tesellüm tutanağını, ilk satırı bu ürünün seri no ve sistem ismiyle dolu olarak açar.</summary>
         private void HandoverButton_Click(object sender, RoutedEventArgs e)
