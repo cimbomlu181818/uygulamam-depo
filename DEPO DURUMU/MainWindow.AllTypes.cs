@@ -24,6 +24,7 @@ namespace DEPO_DURUMU
     // İÇE AKTARMA: Kullanıcıya dosyanın başlıkları gösterilir; hangisinin Cins, hangisinin
     // Seri No sütunu olduğu sorulur. Depoda olmayan cinsler ve özellikler dosyadan otomatik
     // oluşturulur; var olan cinse dosyada dolu gelen yeni bir sütun da özellik olarak eklenir.
+    // Cins hücresi boş olan satırlar atlanmaz; "Cinsi Belirsiz" adlı ortak cinse eklenir.
     // Yazmadan önce tek bir özet gösterilir ve onay istenir.
     public partial class MainWindow
     {
@@ -32,6 +33,9 @@ namespace DEPO_DURUMU
         private const string AdetHeader = "Adet";
         private const string SeriNoHeader = "Seri No";
         private const string TextDataType = "Metin";
+
+        // İçe aktarmada Cins hücresi boş olan satırlar atlanmaz; bu adlı cinse eklenir.
+        private const string UnknownTypeName = "Cinsi Belirsiz";
 
         // İçe aktarmada dosyadaki bir sütunun, uygulamadaki hangi özelliğe karşılık geldiği.
         private class ImportColumn
@@ -280,7 +284,7 @@ namespace DEPO_DURUMU
 
             if (plans.Count == 0)
             {
-                MessageBox.Show("Cins sütununda dolu hücre bulunamadı, eklenecek ürün yok.",
+                MessageBox.Show("Dosyada eklenecek ürün satırı bulunamadı.",
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -329,7 +333,8 @@ namespace DEPO_DURUMU
             if (blankTypeRows > 0)
             {
                 message.AppendLine();
-                message.AppendLine("Cins hücresi boş olduğu için atlanan satır: " + blankTypeRows);
+                message.AppendLine("Cins hücresi boş olan " + blankTypeRows + " satır \"" + UnknownTypeName +
+                                   "\" cinsine eklendi (seri no çakışanlar hariç).");
             }
             if (result.InvalidYesNo.Count > 0)
             {
@@ -444,7 +449,11 @@ namespace DEPO_DURUMU
             return columns.Where(c => ColumnHasValues(rows, c.Index)).ToList();
         }
 
-        /// <summary>Cins sütununa göre satırları gruplar; her cins için hangi özelliklerin bağlanacağını hesaplar.</summary>
+        /// <summary>
+        /// Cins sütununa göre satırları gruplar; her cins için hangi özelliklerin bağlanacağını hesaplar.
+        /// Cins hücresi boş olan satırlar atlanmaz, "Cinsi Belirsiz" cinsine gruplanır.
+        /// Hiçbir hücresinde veri olmayan satırlar (cins boş ve tüm özellik hücreleri boş) yok sayılır.
+        /// </summary>
         private List<ImportTypePlan> BuildImportPlans(List<string[]> rows, int cinsColumn,
             List<ImportColumn> columns, out int blankTypeRows)
         {
@@ -465,8 +474,14 @@ namespace DEPO_DURUMU
                 var typeName = Cell(cells, cinsColumn);
                 if (typeName.Length == 0)
                 {
+                    var rowHasData = columns.Any(c => Cell(cells, c.Index).Length > 0);
+                    if (!rowHasData)
+                    {
+                        continue;   // tamamen boş satır: eklenecek bir şey yok
+                    }
+
+                    typeName = UnknownTypeName;
                     blankTypeRows++;
-                    continue;
                 }
 
                 ImportTypePlan plan;
@@ -572,7 +587,8 @@ namespace DEPO_DURUMU
             if (blankTypeRows > 0)
             {
                 text.AppendLine();
-                text.AppendLine("Cins hücresi boş " + blankTypeRows + " satır atlanacak.");
+                text.AppendLine("Cins hücresi boş " + blankTypeRows + " satır, \"" + UnknownTypeName +
+                                "\" cinsine eklenecek.");
             }
 
             text.AppendLine();
