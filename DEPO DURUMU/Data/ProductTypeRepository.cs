@@ -1,5 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Globalization;
+using System.Linq;
 
 namespace DEPO_DURUMU.Data
 {
@@ -14,6 +17,11 @@ namespace DEPO_DURUMU.Data
     /// </summary>
     public static class ProductTypeRepository
     {
+        /// <summary>
+        /// Tüm ürün cinslerini Türkçe alfabe sırasıyla (A, B, C, Ç, D ... İ ... Ş, T, U, Ü ...)
+        /// ve büyük/küçük harf fark etmeksizin sıralı verir. Sıralama SQLite'a bırakılmaz, çünkü
+        /// SQLite Ç, Ş, İ, Ö, Ü gibi harfleri Z'den sonraya, küçük harfleri de büyüklerin arkasına koyar.
+        /// </summary>
         public static List<ProductType> GetAll()
         {
             var list = new List<ProductType>();
@@ -36,7 +44,8 @@ namespace DEPO_DURUMU.Data
                 }
             }
 
-            return list;
+            var turkishComparer = StringComparer.Create(new CultureInfo("tr-TR"), true);
+            return list.OrderBy(t => t.Name, turkishComparer).ToList();
         }
 
         /// <summary>
