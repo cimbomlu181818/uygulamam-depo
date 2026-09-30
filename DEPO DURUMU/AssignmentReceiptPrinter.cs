@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
@@ -10,12 +11,14 @@ using DEPO_DURUMU.Data;
 namespace DEPO_DURUMU
 {
     /// <summary>
-    /// Bir zimmet kaydı için tutanak hazırlayıp yazdırır.
-    /// Hem ürün detayı ekranından hem de Zimmetler defterinden çağrılır.
+    /// Zimmet kayıtları için tutanak hazırlayıp önizler ve yazdırır: zimmet tutanağı ve iade tutanağı.
+    /// Zimmetleme sonrası ve Zimmetler defterinden çağrılır.
     /// </summary>
     public static class AssignmentReceiptPrinter
     {
         private static readonly CultureInfo Turkish = new CultureInfo("tr-TR");
+
+        // ---------- ÖNİZLEME ----------
 
         /// <summary>
         /// Zimmet tutanağını yazdırmadan önce ekranda gösterir. Pencerede "Yazdır" ve "Kapat" düğmeleri vardır;
@@ -28,46 +31,35 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var window = new ReceiptPreviewWindow(owner, assignments);
+            var window = new ReceiptPreviewWindow(owner, assignments, false);
             window.ShowDialog();
         }
+
+        /// <summary>İade tutanağını (iade alınmış zimmetler için) önce ekranda gösterir; yazdırmak için pencerede "Yazdır"a basılır.</summary>
+        public static void ShowReturnPreview(Window owner, List<Assignment> assignments)
+        {
+            if (assignments == null || assignments.Count == 0)
+            {
+                return;
+            }
+
+            var window = new ReceiptPreviewWindow(owner, assignments, true);
+            window.ShowDialog();
+        }
+
+        // ---------- YAZDIRMA ----------
 
         /// <summary>Tutanağı yazdırır. Yazdırma tamamlanırsa true, iptal edilir ya da hata verirse false döner.</summary>
         public static bool Print(Window owner, Assignment assignment)
         {
-            var printDialog = new PrintDialog();
+            var printed = PrintDocument(owner, width => BuildDocument(assignment, width), "Zimmet tutanağı");
 
-            if (printDialog.ShowDialog() != true)
+            if (printed)
             {
-                return false;
+                LogPrinted(new List<Assignment> { assignment }, "Zimmet tutanağı yazdırıldı");
             }
 
-            FlowDocument document = BuildDocument(assignment, printDialog.PrintableAreaWidth);
-            IDocumentPaginatorSource paginatorSource = document;
-
-            try
-            {
-                printDialog.PrintDocument(paginatorSource.DocumentPaginator, "Zimmet tutanağı");
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(owner, "Yazdırılamadı:\n" + ex.Message, "Depo Durumu",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-                return false;
-            }
-
-            try
-            {
-                LogRepository.Add(assignment.TypeName,
-                    assignment.ProductText + " | " + assignment.PersonName,
-                    "Zimmet tutanağı yazdırıldı");
-            }
-            catch (Exception)
-            {
-                // Yazdırma zaten tamamlandı; log yazılamaması yazdırmayı engellemez.
-            }
-
-            return true;
+            return printed;
         }
 
         /// <summary>Bir kişiye toplu yapılan zimmetler için, malzemeleri liste hâlinde gösteren tek tutanak yazdırır.</summary>
@@ -83,6 +75,36 @@ namespace DEPO_DURUMU
                 return Print(owner, assignments[0]);
             }
 
+            var printed = PrintDocument(owner, width => BuildDocument(assignments, width), "Zimmet tutanağı");
+
+            if (printed)
+            {
+                LogPrinted(assignments, "Zimmet tutanağı yazdırıldı");
+            }
+
+            return printed;
+        }
+
+        /// <summary>İade tutanağını yazdırır (tek ya da birden fazla malzeme).</summary>
+        public static bool PrintReturn(Window owner, List<Assignment> assignments)
+        {
+            if (assignments == null || assignments.Count == 0)
+            {
+                return false;
+            }
+
+            var printed = PrintDocument(owner, width => BuildReturnDocument(assignments, width), "Zimmet iade tutanağı");
+
+            if (printed)
+            {
+                LogPrinted(assignments, "İade tutanağı yazdırıldı");
+            }
+
+            return printed;
+        }
+
+        private static bool PrintDocument(Window owner, Func<double, FlowDocument> build, string jobName)
+        {
             var printDialog = new PrintDialog();
 
             if (printDialog.ShowDialog() != true)
@@ -90,12 +112,12 @@ namespace DEPO_DURUMU
                 return false;
             }
 
-            FlowDocument document = BuildDocument(assignments, printDialog.PrintableAreaWidth);
+            FlowDocument document = build(printDialog.PrintableAreaWidth);
             IDocumentPaginatorSource paginatorSource = document;
 
             try
             {
-                printDialog.PrintDocument(paginatorSource.DocumentPaginator, "Zimmet tutanağı");
+                printDialog.PrintDocument(paginatorSource.DocumentPaginator, jobName);
             }
             catch (Exception ex)
             {
@@ -104,38 +126,95 @@ namespace DEPO_DURUMU
                 return false;
             }
 
+            return true;
+        }
+
+        private static void LogPrinted(List<Assignment> assignments, string actionType)
+        {
             foreach (var assignment in assignments)
             {
                 try
                 {
                     LogRepository.Add(assignment.TypeName,
                         assignment.ProductText + " | " + assignment.PersonName,
-                        "Zimmet tutanağı yazdırıldı");
+                        actionType);
                 }
                 catch (Exception)
                 {
                     // Yazdırma zaten tamamlandı; log yazılamaması yazdırmayı engellemez.
                 }
             }
-
-            return true;
         }
 
-        private static FlowDocument BuildDocument(List<Assignment> assignments, double pageWidth)
-        {
-            var first = assignments[0];
+        // ---------- BELGELER ----------
 
+        private static FlowDocument NewDocument(double pageWidth)
+        {
             var effectivePageWidth = pageWidth > 0 ? pageWidth : 750;
 
-            var document = new FlowDocument
+            return new FlowDocument
             {
                 PageWidth = effectivePageWidth,
                 ColumnWidth = effectivePageWidth,
                 FontSize = 12,
                 PagePadding = new Thickness(30)
             };
+        }
 
-            document.Blocks.Add(new Paragraph(new Run("ZİMMET TUTANAĞI"))
+        /// <summary>Toplu zimmet tutanağı: bir kişiye verilen malzemeler liste hâlinde.</summary>
+        private static FlowDocument BuildDocument(List<Assignment> assignments, double pageWidth)
+        {
+            return BuildListDocument(
+                assignments,
+                pageWidth,
+                "ZİMMET TUTANAĞI",
+                "Zimmet tarihi",
+                "Teslim alan kişi",
+                a => a.AssignedAt,
+                a => a.AssignedAtText,
+                a => a.AssignedNote,
+                "Teslim edilen malzemeler:",
+                "Yukarıda listelenen malzemeler, belirtilen tarih itibarıyla adıma zimmetlenmiştir.",
+                "Teslim Eden",
+                "Teslim Alan");
+        }
+
+        /// <summary>İade tutanağı: kişinin iade ettiği malzemeler liste hâlinde (tek malzeme de aynı biçimde).</summary>
+        private static FlowDocument BuildReturnDocument(List<Assignment> assignments, double pageWidth)
+        {
+            return BuildListDocument(
+                assignments,
+                pageWidth,
+                "ZİMMET İADE TUTANAĞI",
+                "İade tarihi",
+                "İade eden kişi",
+                a => a.ReturnedAt,
+                a => a.ReturnedAtText,
+                a => a.ReturnedNote,
+                "İade edilen malzemeler:",
+                "Yukarıda listelenen malzemeler, belirtilen tarih itibarıyla adıma olan zimmetimden iade edilmiştir.",
+                "İade Eden",
+                "İade Alan");
+        }
+
+        private static FlowDocument BuildListDocument(
+            List<Assignment> assignments,
+            double pageWidth,
+            string title,
+            string dateLabel,
+            string personLabel,
+            Func<Assignment, string> dateRaw,
+            Func<Assignment, string> dateText,
+            Func<Assignment, string> noteOf,
+            string itemsHeading,
+            string statement,
+            string leftSign,
+            string rightSign)
+        {
+            var first = assignments[0];
+            var document = NewDocument(pageWidth);
+
+            document.Blocks.Add(new Paragraph(new Run(title))
             {
                 FontSize = 18,
                 FontWeight = FontWeights.Bold,
@@ -143,17 +222,32 @@ namespace DEPO_DURUMU
                 Margin = new Thickness(0, 0, 0, 20)
             });
 
-            AddField(document, "Zimmet tarihi", first.AssignedAtText);
-            AddField(document, "Teslim alan kişi", first.PersonName);
+            // Tüm kayıtların tarihi aynı gündeyse başlıkta tek tarih yazılır; farklı günlerdeyse tabloya "tarih" sütunu eklenir.
+            var commonDate = CommonDateText(assignments.Select(dateRaw));
+            var dateColumn = commonDate == null;
+
+            if (!dateColumn)
+            {
+                AddField(document, dateLabel, commonDate);
+            }
+
+            AddField(document, personLabel, first.PersonName);
             AddField(document, "Sicil no", string.IsNullOrEmpty(first.RegistryNo) ? "-" : first.RegistryNo);
             AddField(document, "Birim", string.IsNullOrEmpty(first.Department) ? "-" : first.Department);
 
-            if (!string.IsNullOrEmpty(first.AssignedNote))
+            var notes = assignments
+                .Select(noteOf)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Select(n => n.Trim())
+                .Distinct()
+                .ToList();
+
+            if (notes.Count > 0)
             {
-                AddField(document, "Not", first.AssignedNote);
+                AddField(document, "Not", string.Join("; ", notes));
             }
 
-            document.Blocks.Add(new Paragraph(new Run("Teslim edilen malzemeler:"))
+            document.Blocks.Add(new Paragraph(new Run(itemsHeading))
             {
                 FontWeight = FontWeights.SemiBold,
                 Margin = new Thickness(0, 10, 0, 4)
@@ -161,7 +255,9 @@ namespace DEPO_DURUMU
 
             // Malzeme listesi: teslim-tesellüm tutanağıyla aynı yapı (tüm sütunlar oransal / Star).
             var itemsTable = new Table();
-            var columnWidths = new[] { 0.5, 3.0, 2.0, 1.0 }; // No, Malzeme, Seri No, Miktar
+            var columnWidths = dateColumn
+                ? new[] { 0.5, 3.0, 2.0, 1.0, 1.7 }   // No, Malzeme, Seri No, Miktar, Tarih
+                : new[] { 0.5, 3.0, 2.0, 1.0 };       // No, Malzeme, Seri No, Miktar
             foreach (var w in columnWidths)
             {
                 itemsTable.Columns.Add(new TableColumn { Width = new GridLength(w, GridUnitType.Star) });
@@ -175,6 +271,10 @@ namespace DEPO_DURUMU
             headerRow.Cells.Add(MakeItemCell("Malzeme", true));
             headerRow.Cells.Add(MakeItemCell("Seri No", true));
             headerRow.Cells.Add(MakeItemCell("Miktar", true));
+            if (dateColumn)
+            {
+                headerRow.Cells.Add(MakeItemCell(dateLabel, true));
+            }
             itemsGroup.Rows.Add(headerRow);
 
             for (var i = 0; i < assignments.Count; i++)
@@ -185,32 +285,60 @@ namespace DEPO_DURUMU
                 itemRow.Cells.Add(MakeItemCell(a.SystemNameText, false));
                 itemRow.Cells.Add(MakeItemCell(string.IsNullOrEmpty(a.SerialNo) ? "-" : a.SerialNo, false));
                 itemRow.Cells.Add(MakeItemCell(a.Quantity.ToString(Turkish), false));
+                if (dateColumn)
+                {
+                    itemRow.Cells.Add(MakeItemCell(dateText(a), false));
+                }
                 itemsGroup.Rows.Add(itemRow);
             }
 
             document.Blocks.Add(itemsTable);
 
-            document.Blocks.Add(new Paragraph(new Run(
-                "Yukarıda listelenen malzemeler, belirtilen tarih itibarıyla adıma zimmetlenmiştir."))
+            document.Blocks.Add(new Paragraph(new Run(statement))
             {
                 Margin = new Thickness(0, 30, 0, 40)
             });
 
-            var table = new Table();
-            table.Columns.Add(new TableColumn());
-            table.Columns.Add(new TableColumn());
-
-            var rowGroup = new TableRowGroup();
-            table.RowGroups.Add(rowGroup);
-
-            var row = new TableRow();
-            row.Cells.Add(MakeSignatureCell("Teslim Eden"));
-            row.Cells.Add(MakeSignatureCell("Teslim Alan"));
-            rowGroup.Rows.Add(row);
-
-            document.Blocks.Add(table);
+            document.Blocks.Add(MakeSignatureTable(leftSign, rightSign));
 
             return document;
+        }
+
+        /// <summary>
+        /// Kayıtların ortak tarih yazısı: hepsi aynı dakikadaysa "gg.aa.yyyy SS:dd", aynı günse "gg.aa.yyyy".
+        /// Farklı günlere yayılıyorsa (ya da tarih okunamazsa) null döner; bu durumda tabloya tarih sütunu eklenir.
+        /// </summary>
+        private static string CommonDateText(IEnumerable<string> rawValues)
+        {
+            var dates = new List<DateTime>();
+
+            foreach (var raw in rawValues)
+            {
+                DateTime parsed;
+                if (!DateTime.TryParseExact(raw, "yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture,
+                        DateTimeStyles.None, out parsed))
+                {
+                    return null;
+                }
+
+                dates.Add(parsed);
+            }
+
+            if (dates.Count == 0)
+            {
+                return "";
+            }
+
+            if (dates.Select(d => d.Date).Distinct().Count() > 1)
+            {
+                return null;
+            }
+
+            var sameMinute = dates.Select(d => d.ToString("HH:mm", CultureInfo.InvariantCulture)).Distinct().Count() == 1;
+
+            return sameMinute
+                ? dates[0].ToString("dd.MM.yyyy HH:mm", Turkish)
+                : dates[0].ToString("dd.MM.yyyy", Turkish);
         }
 
         private static TableCell MakeItemCell(string text, bool bold)
@@ -231,17 +359,10 @@ namespace DEPO_DURUMU
             };
         }
 
+        /// <summary>Tek malzemelik zimmet tutanağı.</summary>
         private static FlowDocument BuildDocument(Assignment assignment, double pageWidth)
         {
-            var effectivePageWidth = pageWidth > 0 ? pageWidth : 750;
-
-            var document = new FlowDocument
-            {
-                PageWidth = effectivePageWidth,
-                ColumnWidth = effectivePageWidth,
-                FontSize = 12,
-                PagePadding = new Thickness(30)
-            };
+            var document = NewDocument(pageWidth);
 
             document.Blocks.Add(new Paragraph(new Run("ZİMMET TUTANAĞI"))
             {
@@ -279,6 +400,13 @@ namespace DEPO_DURUMU
                 Margin = new Thickness(0, 30, 0, 40)
             });
 
+            document.Blocks.Add(MakeSignatureTable("Teslim Eden", "Teslim Alan"));
+
+            return document;
+        }
+
+        private static Table MakeSignatureTable(string leftTitle, string rightTitle)
+        {
             var table = new Table();
             table.Columns.Add(new TableColumn());
             table.Columns.Add(new TableColumn());
@@ -287,13 +415,11 @@ namespace DEPO_DURUMU
             table.RowGroups.Add(rowGroup);
 
             var row = new TableRow();
-            row.Cells.Add(MakeSignatureCell("Teslim Eden"));
-            row.Cells.Add(MakeSignatureCell("Teslim Alan"));
+            row.Cells.Add(MakeSignatureCell(leftTitle));
+            row.Cells.Add(MakeSignatureCell(rightTitle));
             rowGroup.Rows.Add(row);
 
-            document.Blocks.Add(table);
-
-            return document;
+            return table;
         }
 
         private static void AddField(FlowDocument document, string label, string value)
@@ -324,9 +450,9 @@ namespace DEPO_DURUMU
         /// <summary>Tutanağı ekranda gösteren, Yazdır ve Kapat düğmeli önizleme penceresi (kodla kurulur, XAML gerekmez).</summary>
         private sealed class ReceiptPreviewWindow : Window
         {
-            public ReceiptPreviewWindow(Window owner, List<Assignment> assignments)
+            public ReceiptPreviewWindow(Window owner, List<Assignment> assignments, bool isReturn)
             {
-                Title = "Zimmet Tutanağı";
+                Title = isReturn ? "Zimmet İade Tutanağı" : "Zimmet Tutanağı";
                 Owner = owner;
                 Width = 820;
                 Height = 720;
@@ -334,9 +460,17 @@ namespace DEPO_DURUMU
                 MinHeight = 400;
                 WindowStartupLocation = WindowStartupLocation.CenterOwner;
 
-                var document = assignments.Count == 1
-                    ? BuildDocument(assignments[0], 720)
-                    : BuildDocument(assignments, 720);
+                FlowDocument document;
+                if (isReturn)
+                {
+                    document = BuildReturnDocument(assignments, 720);
+                }
+                else
+                {
+                    document = assignments.Count == 1
+                        ? BuildDocument(assignments[0], 720)
+                        : BuildDocument(assignments, 720);
+                }
                 document.Background = Brushes.White;
 
                 var viewer = new FlowDocumentScrollViewer
@@ -355,7 +489,17 @@ namespace DEPO_DURUMU
                     Margin = new Thickness(0, 0, 8, 0),
                     IsDefault = true
                 };
-                printButton.Click += (s, e) => AssignmentReceiptPrinter.Print(this, assignments);
+                printButton.Click += (s, e) =>
+                {
+                    if (isReturn)
+                    {
+                        AssignmentReceiptPrinter.PrintReturn(this, assignments);
+                    }
+                    else
+                    {
+                        AssignmentReceiptPrinter.Print(this, assignments);
+                    }
+                };
 
                 var closeButton = new Button
                 {

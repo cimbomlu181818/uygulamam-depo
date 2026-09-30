@@ -13,7 +13,7 @@ namespace DEPO_DURUMU
 {
     /// <summary>
     /// Zimmetler defteri: şu an kimde ne olduğunu ve (istenirse) iade edilmiş geçmiş kayıtları gösterir.
-    /// Kayıtlar düzenlenebilir, iade alınabilir, yazdırılabilir ve silinebilir.
+    /// Kayıtlar düzenlenebilir, iade alınabilir (toplu da) ve yazdırılabilir. İade alınınca iade tutanağı açılır.
     /// </summary>
     public partial class AssignmentsWindow : Window
     {
@@ -47,7 +47,7 @@ namespace DEPO_DURUMU
                 _all = new List<Assignment>();
             }
 
-            _checkedIds.IntersectWith(_all.Where(a => !a.IsReturned).Select(a => a.Id));
+            _checkedIds.IntersectWith(_all.Select(a => a.Id));
 
             ApplyFilter();
         }
@@ -87,15 +87,15 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var count = GetCheckedActive().Count;
+            var count = GetChecked().Count;
             CheckedText.Text = count == 0 ? "" : count + " kayıt işaretli";
         }
 
-        /// <summary>Listede görünen, işaretli ve henüz iade edilmemiş zimmetler.</summary>
-        private List<Assignment> GetCheckedActive()
+        /// <summary>Listede görünen ve işaretli tüm kayıtlar (iade edilmiş olanlar dahil).</summary>
+        private List<Assignment> GetChecked()
         {
             return _visible
-                .Where(r => r.IsChecked && !r.Item.IsReturned)
+                .Where(r => r.IsChecked)
                 .Select(r => r.Item)
                 .ToList();
         }
@@ -104,10 +104,7 @@ namespace DEPO_DURUMU
         {
             foreach (var row in _visible)
             {
-                if (row.CanCheck)
-                {
-                    row.IsChecked = true;
-                }
+                row.IsChecked = true;
             }
 
             UpdateCheckedInfo();
@@ -221,11 +218,20 @@ namespace DEPO_DURUMU
 
         private void ReturnButton_Click(object sender, RoutedEventArgs e)
         {
-            // Onay kutusuyla işaretlenmiş kayıtlar varsa hepsi birlikte iade alınır.
-            var checkedList = GetCheckedActive();
-            if (checkedList.Count > 0)
+            // Onay kutusuyla işaretlenmiş kayıtlar varsa iade edilmemiş olanların hepsi birlikte iade alınır.
+            var checkedAll = GetChecked();
+            if (checkedAll.Count > 0)
             {
-                ReturnMany(checkedList);
+                var active = checkedAll.Where(a => !a.IsReturned).ToList();
+
+                if (active.Count == 0)
+                {
+                    MessageBox.Show(this, "İşaretli kayıtların hepsi zaten iade alınmış.", "Depo Durumu",
+                        MessageBoxButton.OK, MessageBoxImage.Information);
+                    return;
+                }
+
+                ReturnMany(active, checkedAll.Count - active.Count);
                 return;
             }
 
@@ -264,10 +270,11 @@ namespace DEPO_DURUMU
             }
 
             LoadAssignments();
+            ShowReturnReceipts(new List<int> { selected.Id });
         }
 
-        /// <summary>İşaretlenen tüm zimmetleri tek onayla, aynı anda iade alır.</summary>
-        private void ReturnMany(List<Assignment> list)
+        /// <summary>İşaretlenen tüm zimmetleri tek onayla, aynı anda iade alır; ardından iade tutanağını açar.</summary>
+        private void ReturnMany(List<Assignment> list, int alreadyReturnedCount)
         {
             var lines = list.Take(12).Select(a =>
                 "• " + a.PersonName + " — " + a.ProductText + (a.Quantity > 1 ? " (miktar: " + a.Quantity + ")" : ""));
@@ -278,8 +285,20 @@ namespace DEPO_DURUMU
                 preview += "\n... ve " + (list.Count - 12) + " kayıt daha";
             }
 
+            var extra = "";
+
+            if (alreadyReturnedCount > 0)
+            {
+                extra += "\n\n(İşaretli " + alreadyReturnedCount + " kayıt zaten iade alınmış, atlanacak.)";
+            }
+
+            if (DistinctPeopleCount(list) > 1)
+            {
+                extra += "\n\nFarklı kişilere ait kayıtlar var: her kişi için ayrı iade tutanağı açılacak.";
+            }
+
             var answer = MessageBox.Show(this,
-                list.Count + " zimmet iade alınacak:\n\n" + preview + "\n\nOnaylıyor musun?",
+                list.Count + " zimmet iade alınacak:\n\n" + preview + extra + "\n\nOnaylıyor musun?",
                 "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (answer != MessageBoxResult.Yes)
@@ -287,7 +306,7 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var done = 0;
+            var doneIds = new List<int>();
             var failed = new List<string>();
 
             foreach (var assignment in list)
@@ -295,7 +314,7 @@ namespace DEPO_DURUMU
                 try
                 {
                     AssignmentRepository.Return(assignment.Id, null);
-                    done++;
+                    doneIds.Add(assignment.Id);
                 }
                 catch (Exception ex)
                 {
@@ -309,60 +328,115 @@ namespace DEPO_DURUMU
             if (failed.Count > 0)
             {
                 MessageBox.Show(this,
-                    done + " zimmet iade alındı, " + failed.Count + " kayıt alınamadı:\n\n" +
+                    doneIds.Count + " zimmet iade alındı, " + failed.Count + " kayıt alınamadı:\n\n" +
                     string.Join("\n", failed.Take(8)),
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
+
+            ShowReturnReceipts(doneIds);
         }
 
-        private void PrintButton_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// İade alınan kayıtlar için iade tutanağını önizleme olarak açar. Kayıtlar farklı kişilere aitse
+        /// her kişi için ayrı tutanak açılır (tutanak tek kişinin adına düzenlenir).
+        /// </summary>
+        private void ShowReturnReceipts(List<int> returnedIds)
         {
-            var selected = GetSelected();
-            if (selected == null)
-            {
-                return;
-            }
-
-            // Önce tutanak ekranda açılır; yazdırmak için pencerede "Yazdır"a basılır.
-            AssignmentReceiptPrinter.ShowPreview(this, new List<Assignment> { selected });
-        }
-
-        private void DeleteButton_Click(object sender, RoutedEventArgs e)
-        {
-            var selected = GetSelected();
-            if (selected == null)
-            {
-                return;
-            }
-
-            var effect = selected.IsReturned
-                ? "Bu kayıt iade edilmiş; silinirse sadece geçmişten kaybolur."
-                : "Bu zimmet hâlâ aktif; silinirse ürün yeniden zimmetlenebilir hâle gelir " +
-                  "(iade alınmış sayılmaz, sadece kayıt silinir).";
-
-            var answer = MessageBox.Show(this,
-                selected.ProductText + "\n" + selected.PersonName + " | Miktar: " + selected.Quantity +
-                " | " + selected.AssignedAtText + "\n\n" + effect +
-                "\n\nBu zimmet kaydı KALICI olarak silinecek. Onaylıyor musun?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-
-            if (answer != MessageBoxResult.Yes)
+            if (returnedIds == null || returnedIds.Count == 0)
             {
                 return;
             }
 
             try
             {
-                AssignmentRepository.Delete(selected.Id);
+                var returned = returnedIds
+                    .Select(id => AssignmentRepository.GetById(id))
+                    .Where(a => a != null)
+                    .ToList();
+
+                var groups = returned.GroupBy(a => (a.PersonName ?? "").Trim(), StringComparer.Create(Turkish, true));
+
+                foreach (var group in groups)
+                {
+                    AssignmentReceiptPrinter.ShowReturnPreview(this, group.OrderBy(a => a.Id).ToList());
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Silinemedi:\n" + ex.Message, "Depo Durumu",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
+                MessageBox.Show(this, "İade alındı ama iade tutanağı açılamadı:\n" + ex.Message, "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private static int DistinctPeopleCount(List<Assignment> list)
+        {
+            return list
+                .Select(a => (a.PersonName ?? "").Trim())
+                .Distinct(StringComparer.Create(Turkish, true))
+                .Count();
+        }
+
+        /// <summary>
+        /// Yazdır: İşaretli kayıt varsa hepsi için tek tutanak, yoksa seçili satır için tutanak açılır.
+        /// Toplu tutanak sadece aynı kişiye ait kayıtlar için çıkar; farklı kişiler işaretliyse uyarılır ve yazdırılmaz.
+        /// Kayıtlar iade edilmişse iade tutanağı, zimmetteyse zimmet tutanağı açılır.
+        /// </summary>
+        private void PrintButton_Click(object sender, RoutedEventArgs e)
+        {
+            var list = GetChecked();
+
+            if (list.Count == 0)
+            {
+                var selected = GetSelected();
+                if (selected == null)
+                {
+                    return;
+                }
+
+                list = new List<Assignment> { selected };
             }
 
-            LoadAssignments();
+            if (list.Count > 1)
+            {
+                var people = list
+                    .Select(a => (a.PersonName ?? "").Trim())
+                    .Distinct(StringComparer.Create(Turkish, true))
+                    .ToList();
+
+                if (people.Count > 1)
+                {
+                    MessageBox.Show(this,
+                        "İşaretli kayıtlar farklı kişilere ait:\n\n" +
+                        string.Join("\n", people.Take(8).Select(n => "• " + n)) +
+                        (people.Count > 8 ? "\n... ve " + (people.Count - 8) + " kişi daha" : "") +
+                        "\n\nToplu tutanak sadece aynı kişiye ait kayıtlar için çıkarılır. " +
+                        "Lütfen aynı kişiye ait kayıtları işaretleyip tekrar dene.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (list.Select(a => a.IsReturned).Distinct().Count() > 1)
+                {
+                    MessageBox.Show(this,
+                        "İşaretli kayıtların bir kısmı zimmette, bir kısmı iade edilmiş.\n\n" +
+                        "Zimmet tutanağı ile iade tutanağı birlikte çıkarılamaz. " +
+                        "Sadece zimmetteki ya da sadece iade edilmiş kayıtları işaretleyip tekrar dene.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            list = list.OrderBy(a => a.Id).ToList();
+
+            // Önce tutanak ekranda açılır; yazdırmak için pencerede "Yazdır"a basılır.
+            if (list[0].IsReturned)
+            {
+                AssignmentReceiptPrinter.ShowReturnPreview(this, list);
+            }
+            else
+            {
+                AssignmentReceiptPrinter.ShowPreview(this, list);
+            }
         }
     }
 
@@ -384,22 +458,11 @@ namespace DEPO_DURUMU
 
         public Assignment Item { get; private set; }
 
-        /// <summary>İade edilmiş kayıtlar işaretlenemez.</summary>
-        public bool CanCheck
-        {
-            get { return !Item.IsReturned; }
-        }
-
         public bool IsChecked
         {
-            get { return CanCheck && _checkedIds.Contains(Item.Id); }
+            get { return _checkedIds.Contains(Item.Id); }
             set
             {
-                if (!CanCheck)
-                {
-                    return;
-                }
-
                 var changed = value ? _checkedIds.Add(Item.Id) : _checkedIds.Remove(Item.Id);
                 if (!changed)
                 {
