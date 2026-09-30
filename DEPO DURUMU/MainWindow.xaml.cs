@@ -1125,9 +1125,54 @@ namespace DEPO_DURUMU
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
+        /// <summary>
+        /// Excel, CSV'deki uzun rakam dizilerini (IMEI, seri no, barkod...) 3,54581E+14 gibi bilimsel sayıya
+        /// çevirir ve baştaki sıfırları siler. Bunu önlemek için böyle değerler ="..." biçiminde yazılır.
+        /// </summary>
+        private static string ProtectLongNumber(string value)
+        {
+            value = ExpandScientific(value);
+
+            if (string.IsNullOrEmpty(value) || value.Length < 2)
+            {
+                return value;
+            }
+
+            foreach (var ch in value)
+            {
+                if (ch < '0' || ch > '9')
+                {
+                    return value;
+                }
+            }
+
+            if (value.Length >= 12 || value[0] == '0')
+            {
+                return "=\"" + value + "\"";
+            }
+
+            return value;
+        }
+
+        /// <summary>İçe aktarırken ="123456789012345" biçimini tekrar düz değere çevirir.</summary>
+        private static string UnwrapExcelText(string value)
+        {
+            if (value != null && value.Length >= 3 && value.StartsWith("=\"") && value.EndsWith("\""))
+            {
+                return value.Substring(2, value.Length - 3);
+            }
+            return ExpandScientific(value);
+        }
+
+        /// <summary>Bilimsel gösterime bozulmuş uzun sayıyı tam rakamlarına çevirir (Database.ExpandScientific).</summary>
+        private static string ExpandScientific(string value)
+        {
+            return DEPO_DURUMU.Data.Database.ExpandScientific(value);
+        }
+
         private static string CsvEscape(string value)
         {
-            value = value ?? "";
+            value = ProtectLongNumber(value ?? "");
             if (value.Contains(";") || value.Contains("\"") || value.Contains("\n"))
             {
                 return "\"" + value.Replace("\"", "\"\"") + "\"";
@@ -1304,7 +1349,10 @@ namespace DEPO_DURUMU
                 rows.Add(current.ToArray());
             }
 
-            return rows.Where(r => r.Length > 1 || !string.IsNullOrWhiteSpace(r.FirstOrDefault())).ToList();
+            return rows
+                .Where(r => r.Length > 1 || !string.IsNullOrWhiteSpace(r.FirstOrDefault()))
+                .Select(r => r.Select(UnwrapExcelText).ToArray())
+                .ToList();
         }
 
         // ---------- YEDEKLE / GERİ YÜKLE ----------

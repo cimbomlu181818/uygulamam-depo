@@ -1558,7 +1558,23 @@ namespace DEPO_DURUMU
                 return FormatExcelDate(number);
             }
 
-            if (Math.Abs(number) < 1e15 && number == Math.Floor(number))
+            // Excel dosyasında düz rakam olarak yazılmışsa (IMEI, seri no...) aynen al
+            var digitsOnly = raw.Length > 0;
+            foreach (var ch in raw)
+            {
+                if (ch < '0' || ch > '9')
+                {
+                    digitsOnly = false;
+                    break;
+                }
+            }
+            if (digitsOnly)
+            {
+                return raw;
+            }
+
+            // 2,78E+15 gibi bilimsel gösterime düşmesin: tam sayıysa uzun rakam olarak yaz
+            if (Math.Abs(number) < 1e18 && number == Math.Floor(number))
             {
                 return ((long)number).ToString(CultureInfo.InvariantCulture);
             }
@@ -1735,7 +1751,10 @@ namespace DEPO_DURUMU
                 rows.Add(current.ToArray());
             }
 
-            return rows.Where(line => line.Any(cell => cell.Trim().Length > 0)).ToList();
+            return rows
+                .Where(line => line.Any(cell => cell.Trim().Length > 0))
+                .Select(line => line.Select(UnwrapExcelText).ToArray())
+                .ToList();
         }
 
         // =====================================================================

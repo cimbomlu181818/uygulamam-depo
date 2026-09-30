@@ -1,6 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Data.SQLite;
+using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace DEPO_DURUMU.Data
 {
@@ -52,6 +55,112 @@ namespace DEPO_DURUMU.Data
             EnsureProductsSortOrderColumn();
             EnsureQuantityColumns();
             PropertyDefinitionRepository.EnsureDefaults();
+            RepairScientificNumbers();
+        }
+
+        private static readonly Regex ScientificRegex =
+            new Regex(@"^(\d+)(?:[.,](\d+))?[eE]\+?(\d{1,2})$", RegexOptions.Compiled);
+
+        /// <summary>
+        /// "2,78389041700206E+15" gibi bilimsel gösterime bozulmuş uzun sayıyı tam rakam dizisine
+        /// çevirir (2783890417002060). Sadece sonuç 12 hane ve üzeriyse ve rakamların hepsi metinde
+        /// varsa dokunur; "2,78E+15" gibi rakamları kaybolmuş değerlere rakam uydurmaz.
+        /// </summary>
+        public static string ExpandScientific(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
+
+            var match = ScientificRegex.Match(value.Trim());
+            if (!match.Success)
+            {
+                return value;
+            }
+
+            var mantissaDigits = match.Groups[1].Length + match.Groups[2].Length;
+            var exponent = int.Parse(match.Groups[3].Value, CultureInfo.InvariantCulture);
+
+            // Excel en fazla 15 anlamlı hane saklar; daha azı varsa rakamlar zaten kaybolmuştur.
+            if (mantissaDigits < 15 && mantissaDigits <= exponent)
+            {
+                return value;
+            }
+
+            decimal number;
+            var normalized = match.Groups[1].Value +
+                (match.Groups[2].Success ? "." + match.Groups[2].Value : "") + "E" + exponent;
+            if (!decimal.TryParse(normalized, NumberStyles.Float, CultureInfo.InvariantCulture, out number))
+            {
+                return value;
+            }
+
+            var digits = number.ToString("0", CultureInfo.InvariantCulture);
+            return digits.Length >= 12 ? digits : value;
+        }
+
+        /// <summary>
+        /// Daha önce bilimsel gösterime bozulup kaydedilmiş uzun sayıları (seri no, MAC vb.)
+        /// tam rakamlarına çevirir. Zaten düzgün olan kayıtlara dokunmaz.
+        /// </summary>
+        private static void RepairScientificNumbers()
+        {
+            try
+            {
+                using (var connection = OpenConnection())
+                using (var transaction = connection.BeginTransaction())
+                {
+                    RepairColumn(connection, "ProductValues", "TextValue");
+                    RepairColumn(connection, "ScrapProductValues", "TextValue");
+                    RepairColumn(connection, "Assignments", "SerialNo");
+                    RepairColumn(connection, "HandoverItems", "SerialNo");
+                    transaction.Commit();
+                }
+            }
+            catch
+            {
+                // Onarım başarısız olsa da program açılmaya devam etsin.
+            }
+        }
+
+        private static void RepairColumn(SQLiteConnection connection, string table, string column)
+        {
+            var fixes = new List<KeyValuePair<long, string>>();
+
+            using (var select = connection.CreateCommand())
+            {
+                select.CommandText =
+                    "SELECT Id, " + column + " FROM " + table + " WHERE " + column + " LIKE '%E+%';";
+                using (var reader = select.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        if (reader.IsDBNull(1))
+                        {
+                            continue;
+                        }
+
+                        var text = reader.GetString(1);
+                        var expanded = ExpandScientific(text);
+                        if (expanded != text)
+                        {
+                            fixes.Add(new KeyValuePair<long, string>(reader.GetInt64(0), expanded));
+                        }
+                    }
+                }
+            }
+
+            foreach (var fix in fixes)
+            {
+                using (var update = connection.CreateCommand())
+                {
+                    update.CommandText = "UPDATE " + table + " SET " + column + " = @v WHERE Id = @id;";
+                    update.Parameters.Add(new SQLiteParameter("@v", fix.Value));
+                    update.Parameters.Add(new SQLiteParameter("@id", fix.Key));
+                    update.ExecuteNonQuery();
+                }
+            }
         }
 
         /// <summary>
