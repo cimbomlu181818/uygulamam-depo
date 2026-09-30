@@ -20,6 +20,7 @@
                 <MenuItem Header="Log" Click="LogMenu_Click" />
                 <MenuItem Header="Tüm Cinsleri Dışa Aktar (CSV)..." Click="ExportAllTypesMenu_Click" />
                 <MenuItem Header="Tüm Cinsleri İçe Aktar (CSV)..." Click="ImportAllTypesMenu_Click" />
+                <MenuItem Header="Hurdaya İçe Aktar (Excel/CSV)..." Click="ImportScrapMenu_Click" />
                 <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
                 <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
                 <Separator />

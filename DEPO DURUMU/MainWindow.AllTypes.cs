@@ -1737,5 +1737,371 @@ namespace DEPO_DURUMU
 
             return rows.Where(line => line.Any(cell => cell.Trim().Length > 0)).ToList();
         }
+
+        // =====================================================================
+        // HURDAYA İÇE AKTAR (gerçek depoya hiç dokunmaz)
+        // =====================================================================
+        //
+        // Excel/CSV dosyasındaki satırlar doğrudan HURDA tablolarına yazılır. Gerçek depoda
+        // cins, özellik ya da ürün oluşturulmaz/değiştirilmez. Hurdadan geri getirirken cins ve
+        // özellikler eksikse zaten otomatik oluşturulur. Tarih yazılmaz (boş kalır).
+
+        private class ScrapImportRow
+        {
+            public string TypeName;
+            public int Rank;
+            public int Quantity;
+            public string[] Cells;
+        }
+
+        private void ImportScrapMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Hurdaya İçe Aktar",
+                Filter = "Excel veya CSV (*.xlsx;*.xlsm;*.csv)|*.xlsx;*.xlsm;*.csv|Tüm dosyalar (*.*)|*.*"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            List<string[]> rows;
+            try
+            {
+                rows = ReadTableFile(dialog.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (rows == null)
+            {
+                return;   // kullanıcı sayfa seçiminden vazgeçti
+            }
+
+            if (rows.Count < 2)
+            {
+                MessageBox.Show("Dosyada, başlık satırından sonra en az bir veri satırı olmalı.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var headers = rows[0].Select(h => h.Trim()).ToArray();
+
+            var pickable = new List<KeyValuePair<int, string>>();
+            for (var i = 0; i < headers.Length; i++)
+            {
+                if (headers[i].Length > 0)
+                {
+                    pickable.Add(new KeyValuePair<int, string>(i, DescribeColumn(headers[i], rows, i)));
+                }
+            }
+
+            if (pickable.Count == 0)
+            {
+                MessageBox.Show("Dosyanın ilk satırında başlık bulunamadı.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 1. SORU: Cins sütunu hangisi?
+            var cinsColumn = PickColumn("Cins sütunu",
+                "Hangi sütun ürünün CİNSİNİ içeriyor?\n(Örnek: Bilgisayar, Telsiz)",
+                pickable, FindOptionIndex(pickable, headers, CinsHeader));
+            if (cinsColumn < 0)
+            {
+                return;
+            }
+
+            // 2. SORU: Seri numarası sütunu var mı? Varsa hangisi?
+            var serialOptions = pickable.Where(o => o.Key != cinsColumn).ToList();
+            var serialColumn = -1;
+
+            if (serialOptions.Count > 0)
+            {
+                var serialAnswer = MessageBox.Show(this,
+                    "Dosyada seri numarası sütunu var mı?\n\n" +
+                    "Evet: var, bir sonraki adımda sütunu seçeceksin.\n" +
+                    "Hayır: yok.\n" +
+                    "İptal: içe aktarmayı durdur.",
+                    "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+                if (serialAnswer == MessageBoxResult.Cancel || serialAnswer == MessageBoxResult.None)
+                {
+                    return;
+                }
+
+                if (serialAnswer == MessageBoxResult.Yes)
+                {
+                    serialColumn = PickColumn("Seri numarası sütunu",
+                        "Hangi sütun SERİ NUMARASINI içeriyor?",
+                        serialOptions, FindOptionIndex(serialOptions, headers, SeriNoHeader));
+                    if (serialColumn < 0)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            // Sütunları hazırla (özellik adı, veri tipi, seri no işareti).
+            var ignoredColumns = new List<string>();
+            int quantityColumn;
+            var columns = BuildImportColumns(rows, headers, cinsColumn, serialColumn, -1, out quantityColumn, ignoredColumns);
+
+            // Seri No tekilliği: depoda ve hurdada zaten olan seri no'lar tekrar eklenmez.
+            HashSet<string> knownSerials;
+            using (var connection = Database.OpenConnection())
+            {
+                knownSerials = LoadStringSet(connection,
+                    "SELECT pv.TextValue FROM ProductValues pv " +
+                    "JOIN PropertyDefinitions pd ON pd.Id = pv.PropertyId " +
+                    "WHERE pd.IsSerialNumber = 1 AND pv.TextValue IS NOT NULL;");
+                knownSerials.UnionWith(LoadStringSet(connection,
+                    "SELECT TextValue FROM ScrapProductValues WHERE IsSerialNumber = 1 AND TextValue IS NOT NULL;"));
+            }
+
+            // Satırları cinslerine göre sırala; her cinsin kendi sırası dosyadaki sırası olur.
+            var items = new List<ScrapImportRow>();
+            var typeNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var rankByType = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            var skippedSerials = new List<string>();
+            var blankTypeRows = 0;
+
+            for (var r = 1; r < rows.Count; r++)
+            {
+                var cells = rows[r];
+                var typeName = Cell(cells, cinsColumn);
+
+                if (typeName.Length == 0)
+                {
+                    var rowHasData = columns.Any(c => Cell(cells, c.Index).Length > 0);
+                    if (!rowHasData)
+                    {
+                        continue;   // tamamen boş satır
+                    }
+
+                    typeName = UnknownTypeName;
+                    blankTypeRows++;
+                }
+
+                string canonicalName;
+                if (!typeNames.TryGetValue(typeName, out canonicalName))
+                {
+                    canonicalName = typeName;
+                    typeNames[typeName] = canonicalName;
+                }
+
+                var conflict = false;
+                foreach (var serialCheck in columns.Where(c => c.IsSerialNumberProperty))
+                {
+                    var serialValue = Cell(cells, serialCheck.Index);
+                    if (serialValue.Length > 0 && knownSerials.Contains(serialValue))
+                    {
+                        skippedSerials.Add(serialValue);
+                        conflict = true;
+                    }
+                }
+
+                if (conflict)
+                {
+                    continue;
+                }
+
+                foreach (var serialAdd in columns.Where(c => c.IsSerialNumberProperty))
+                {
+                    var serialValue = Cell(cells, serialAdd.Index);
+                    if (serialValue.Length > 0)
+                    {
+                        knownSerials.Add(serialValue);
+                    }
+                }
+
+                var quantity = 1;
+                if (quantityColumn >= 0)
+                {
+                    int.TryParse(Cell(cells, quantityColumn), out quantity);
+                }
+                if (quantity < 1)
+                {
+                    quantity = 1;
+                }
+
+                int rank;
+                rankByType.TryGetValue(canonicalName, out rank);
+                rank++;
+                rankByType[canonicalName] = rank;
+
+                items.Add(new ScrapImportRow
+                {
+                    TypeName = canonicalName,
+                    Rank = rank,
+                    Quantity = quantity,
+                    Cells = cells
+                });
+            }
+
+            if (items.Count == 0)
+            {
+                MessageBox.Show("Hurdaya eklenecek ürün satırı bulunamadı.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Onay: özet göster.
+            var summary = new StringBuilder();
+            summary.AppendLine(items.Count + " satır HURDAYA eklenecek:");
+            summary.AppendLine();
+            foreach (var group in items.GroupBy(i => i.TypeName))
+            {
+                summary.AppendLine("   • " + group.Key + ": " + group.Count() + " satır");
+            }
+            if (skippedSerials.Count > 0)
+            {
+                summary.AppendLine();
+                summary.AppendLine("Seri no depoda/hurdada zaten olduğu için eklenmeyecek (" +
+                                   skippedSerials.Count + "): " + JoinLimited(skippedSerials, 8));
+            }
+            summary.AppendLine();
+            summary.AppendLine("Gerçek depoya hiçbir şey eklenmez ve değişmez.");
+            summary.AppendLine("Devam edilsin mi?");
+
+            if (MessageBox.Show(this, summary.ToString().TrimEnd(), "Depo Durumu",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+            {
+                return;
+            }
+
+            // Her cinste hangi sütunlar kullanılacak: o cinsin satırlarında en az bir dolu hücresi olanlar.
+            var columnsByType = new Dictionary<string, List<ImportColumn>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in items.GroupBy(i => i.TypeName))
+            {
+                var groupItems = group.ToList();
+                columnsByType[group.Key] = columns
+                    .Where(c => groupItems.Any(i => Cell(i.Cells, c.Index).Length > 0))
+                    .ToList();
+            }
+
+            var added = 0;
+            var invalidYesNo = new List<string>();
+            var countByType = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            string failure = null;
+
+            Mouse.OverrideCursor = Cursors.Wait;
+            try
+            {
+                using (var connection = Database.OpenConnection())
+                using (var transaction = connection.BeginTransaction())
+                using (var scrapCommand = CreateCommand(connection,
+                    "INSERT INTO ScrapProducts (TypeId, TypeName, OriginalSortOrder, Quantity, ScrappedAt) " +
+                    "VALUES (NULL, @typeName, @order, @quantity, @scrappedAt); SELECT last_insert_rowid();",
+                    "@typeName", "@order", "@quantity", "@scrappedAt"))
+                using (var valueCommand = CreateCommand(connection,
+                    "INSERT INTO ScrapProductValues " +
+                    "(ScrapProductId, PropertyId, PropertyName, DataType, IsSerialNumber, TextValue) " +
+                    "VALUES (@scrapId, @propertyId, @propertyName, @dataType, @isSerial, @value);",
+                    "@scrapId", "@propertyId", "@propertyName", "@dataType", "@isSerial", "@value"))
+                {
+                    foreach (var item in items)
+                    {
+                        scrapCommand.Parameters["@typeName"].Value = item.TypeName;
+                        scrapCommand.Parameters["@order"].Value = item.Rank;
+                        scrapCommand.Parameters["@quantity"].Value = item.Quantity;
+                        scrapCommand.Parameters["@scrappedAt"].Value = "";
+                        var scrapId = Convert.ToInt32(scrapCommand.ExecuteScalar());
+
+                        foreach (var column in columnsByType[item.TypeName])
+                        {
+                            var raw = Cell(item.Cells, column.Index);
+                            var value = raw;
+
+                            if (column.DataType == DynamicFieldFactory.YesNoDataType)
+                            {
+                                bool invalid;
+                                value = NormalizeYesNo(raw, out invalid);
+                                if (invalid)
+                                {
+                                    var note = column.PropertyName + ": \"" + raw + "\"";
+                                    if (!invalidYesNo.Contains(note))
+                                    {
+                                        invalidYesNo.Add(note);
+                                    }
+                                }
+                            }
+
+                            valueCommand.Parameters["@scrapId"].Value = scrapId;
+                            valueCommand.Parameters["@propertyId"].Value =
+                                column.Property != null ? (object)column.Property.Id : DBNull.Value;
+                            valueCommand.Parameters["@propertyName"].Value = column.PropertyName;
+                            valueCommand.Parameters["@dataType"].Value = column.DataType;
+                            valueCommand.Parameters["@isSerial"].Value = column.IsSerialNumberProperty ? 1 : 0;
+                            valueCommand.Parameters["@value"].Value = value;
+                            valueCommand.ExecuteNonQuery();
+                        }
+
+                        added++;
+                        int typeCount;
+                        countByType.TryGetValue(item.TypeName, out typeCount);
+                        countByType[item.TypeName] = typeCount + 1;
+                    }
+
+                    transaction.Commit();
+                }
+            }
+            catch (Exception ex)
+            {
+                failure = ex.Message;   // işlem geri alındı: hurdaya hiçbir şey eklenmedi
+            }
+            finally
+            {
+                Mouse.OverrideCursor = null;
+            }
+
+            if (failure != null)
+            {
+                MessageBox.Show(this,
+                    "Hurdaya içe aktarma tamamlanamadı; hiçbir değişiklik yapılmadı.\n\nNeden: " + failure,
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            foreach (var pair in countByType)
+            {
+                LogRepository.Add(pair.Key, pair.Value + " satır", "Hurdaya içe aktarıldı");
+            }
+
+            var message = new StringBuilder();
+            message.AppendLine(added + " ürün hurdaya içe aktarıldı.");
+            if (blankTypeRows > 0)
+            {
+                message.AppendLine();
+                message.AppendLine("Cins hücresi boş olan satırlar \"" + UnknownTypeName + "\" cinsine eklendi.");
+            }
+            if (invalidYesNo.Count > 0)
+            {
+                message.AppendLine();
+                message.AppendLine("Evet/Hayır özelliğine uymayan değerler boş bırakıldı: " + JoinLimited(invalidYesNo, 10));
+            }
+            if (ignoredColumns.Count > 0)
+            {
+                message.AppendLine();
+                message.AppendLine("Yok sayılan sütunlar: " + JoinLimited(ignoredColumns, 10));
+            }
+            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Durumu",
+                MessageBoxButton.OK, MessageBoxImage.Information);
+
+            if (TypePage.Visibility == Visibility.Visible && _currentType != null)
+            {
+                LoadProductGrid(_currentType);
+            }
+            else
+            {
+                ShowHome();
+            }
+        }
     }
 }
