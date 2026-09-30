@@ -1,7 +1,7 @@
 ﻿<Window x:Class="DEPO_DURUMU.TypesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Ürün Cinsleri"
+        Title="Ürün Grupları"
         Height="540" Width="460"
         WindowStartupLocation="CenterOwner">
 
@@ -38,7 +38,7 @@
         <!-- ALT: ürünleri de sil kutusu + yeniden adlandır / seçilenleri sil / kapat -->
         <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
             <CheckBox x:Name="DeleteProductsCheck"
-                      Content="Cinslerdeki ürünleri de sil (geri alınamaz)"
+                      Content="Gruplardaki ürünleri de sil (geri alınamaz)"
                       Foreground="#B00020"
                       Margin="0,0,0,8" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

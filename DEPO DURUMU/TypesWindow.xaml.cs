@@ -154,7 +154,7 @@ namespace DEPO_DURUMU
             var name = NewTypeNameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
             {
-                MessageBox.Show("Lütfen bir ürün cinsi adı yazın.", "Depo Durumu",
+                MessageBox.Show("Lütfen bir ürün grubu adı yazın.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -166,7 +166,7 @@ namespace DEPO_DURUMU
                 string.Compare(n, name, turkish, CompareOptions.IgnoreCase) == 0);
             if (typeExists)
             {
-                MessageBox.Show("Bu ürün cinsi zaten var.", "Depo Durumu",
+                MessageBox.Show("Bu ürün grubu zaten var.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -176,7 +176,7 @@ namespace DEPO_DURUMU
             {
                 var confirm = MessageBox.Show(
                     "\"" + closeType + "\" mi demek istediniz?\n\n" +
-                    "Yine de \"" + name + "\" adında yeni bir ürün cinsi eklemek istiyor musunuz?",
+                    "Yine de \"" + name + "\" adında yeni bir ürün grubu eklemek istiyor musunuz?",
                     "Şunu mu demek istediniz?", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
                 if (confirm != MessageBoxResult.Yes)
@@ -196,7 +196,7 @@ namespace DEPO_DURUMU
             var selected = TypeList.SelectedItem as TypeRow;
             if (selected == null)
             {
-                MessageBox.Show("Önce listeden bir ürün cinsi seçin (adına tıklayın).", "Depo Durumu",
+                MessageBox.Show("Önce listeden bir ürün grubu seçin (adına tıklayın).", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -222,7 +222,7 @@ namespace DEPO_DURUMU
 
             if (selected.Count == 0)
             {
-                MessageBox.Show("Önce silmek istediğin cinsleri işaretle.", "Depo Durumu",
+                MessageBox.Show("Önce silmek istediğin grupları işaretle.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -231,7 +231,7 @@ namespace DEPO_DURUMU
             var totalProducts = selected.Sum(r => r.ProductCount);
 
             var question = new StringBuilder();
-            question.AppendLine(selected.Count + " ürün cinsi silinecek:");
+            question.AppendLine(selected.Count + " ürün grubu silinecek:");
             question.AppendLine(string.Join(", ", selected.Take(10).Select(r => r.Name)) +
                                 (selected.Count > 10 ? " ... (+" + (selected.Count - 10) + " tane daha)" : ""));
             question.AppendLine();
@@ -240,19 +240,19 @@ namespace DEPO_DURUMU
             {
                 if (totalProducts > 0)
                 {
-                    question.AppendLine("DİKKAT: Bu cinslerdeki toplam " +
+                    question.AppendLine("DİKKAT: Bu gruplardaki toplam " +
                                         totalProducts.ToString("N0", CultureInfo.CurrentCulture) +
                                         " ürün de silinecek. Bu işlem geri alınamaz.");
                 }
                 else
                 {
-                    question.AppendLine("Seçili cinslerde ürün yok.");
+                    question.AppendLine("Seçili gruplarda ürün yok.");
                 }
-                question.AppendLine("Zimmette ürünü olan cinsler silinmez.");
+                question.AppendLine("Zimmette ürünü olan gruplar silinmez.");
             }
             else if (totalProducts > 0)
             {
-                question.AppendLine("İçinde ürün olan cinsler silinmeden atlanır.");
+                question.AppendLine("İçinde ürün olan gruplar silinmeden atlanır.");
             }
 
             question.AppendLine();
@@ -346,7 +346,7 @@ namespace DEPO_DURUMU
             }
 
             var message = new StringBuilder();
-            message.AppendLine(deleted.Count + " ürün cinsi silindi.");
+            message.AppendLine(deleted.Count + " ürün grubu silindi.");
             if (productsDeleted > 0)
             {
                 message.AppendLine(productsDeleted.ToString("N0", CultureInfo.CurrentCulture) + " ürün de silindi.");

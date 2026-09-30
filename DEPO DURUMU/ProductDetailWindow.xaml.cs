@@ -177,6 +177,8 @@ namespace DEPO_DURUMU
             }
 
             // Seri No gibi tekil olması gereken özellikleri kaydetmeden önce kontrol et.
+            // Değeri değişmemişse sorulmaz (içe aktarmayla aynı seri no'lu gelmiş ürünler de düzenlenebilsin).
+            var currentValues = ProductRepository.GetValues(_productId);
             foreach (var property in _editable)
             {
                 if (!property.IsSerialNumber)
@@ -186,6 +188,12 @@ namespace DEPO_DURUMU
 
                 var value = DynamicFieldFactory.ReadValue(property.DataType, _editInputs[property.Id]);
                 if (string.IsNullOrEmpty(value))
+                {
+                    continue;
+                }
+
+                string currentValue;
+                if (currentValues.TryGetValue(property.Id, out currentValue) && currentValue == value)
                 {
                     continue;
                 }

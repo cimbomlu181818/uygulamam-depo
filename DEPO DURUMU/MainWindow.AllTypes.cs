@@ -109,7 +109,7 @@ namespace DEPO_DURUMU
 
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "Tüm Cinsleri Dışa Aktar",
+                Title = "Tüm Grupları Dışa Aktar",
                 FileName = "Depo_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv",
                 Filter = "CSV dosyası (*.csv)|*.csv"
             };
@@ -181,7 +181,7 @@ namespace DEPO_DURUMU
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "Tüm Cinsleri İçe Aktar",
+                Title = "Tüm Grupları İçe Aktar",
                 Filter = "Excel veya CSV (*.xlsx;*.xlsm;*.csv)|*.xlsx;*.xlsm;*.csv|Tüm dosyalar (*.*)|*.*"
             };
 
@@ -234,8 +234,8 @@ namespace DEPO_DURUMU
             }
 
             // 1. SORU: Cins sütunu hangisi?
-            var cinsColumn = PickColumn("Cins sütunu",
-                "Hangi sütun ürünün CİNSİNİ içeriyor?\n(Örnek: Bilgisayar, Telsiz)",
+            var cinsColumn = PickColumn("Grup sütunu",
+                "Hangi sütun ürünün GRUBUNU içeriyor?\n(Örnek: Bilgisayar, Telsiz)",
                 pickable, FindOptionIndex(pickable, headers, CinsHeader));
             if (cinsColumn < 0)
             {
@@ -347,17 +347,17 @@ namespace DEPO_DURUMU
             if (result.CreatedTypes.Count > 0)
             {
                 message.AppendLine();
-                message.AppendLine("Yeni oluşturulan cinsler: " + JoinLimited(result.CreatedTypes, 15));
+                message.AppendLine("Yeni oluşturulan gruplar: " + JoinLimited(result.CreatedTypes, 15));
             }
             if (result.CreatedProperties.Count > 0)
             {
                 message.AppendLine();
-                message.AppendLine("Yeni oluşturulan özellikler: " + JoinLimited(result.CreatedProperties, 15));
+                message.AppendLine("Yeni oluşturulan bilgiler: " + JoinLimited(result.CreatedProperties, 15));
             }
             if (result.AttachedToExistingTypes.Count > 0)
             {
                 message.AppendLine();
-                message.AppendLine("Var olan cinslere eklenen özellikler: " + JoinLimited(result.AttachedToExistingTypes, 15));
+                message.AppendLine("Var olan gruplara eklenen bilgiler: " + JoinLimited(result.AttachedToExistingTypes, 15));
             }
             if (result.SkippedSerials.Count > 0)
             {
@@ -368,8 +368,8 @@ namespace DEPO_DURUMU
             if (blankTypeRows > 0)
             {
                 message.AppendLine();
-                message.AppendLine("Cins hücresi boş olan " + blankTypeRows + " satır \"" + UnknownTypeName +
-                                   "\" cinsine eklendi (seri no çakışanlar hariç).");
+                message.AppendLine("Grup hücresi boş olan " + blankTypeRows + " satır \"" + UnknownTypeName +
+                                   "\" grubuna eklendi (seri no çakışanlar hariç).");
             }
             if (result.InvalidYesNo.Count > 0)
             {
@@ -598,15 +598,15 @@ namespace DEPO_DURUMU
             if (newTypes.Count > 0)
             {
                 text.AppendLine();
-                text.AppendLine("Yeni oluşturulacak cinsler (" + newTypes.Count + "):");
+                text.AppendLine("Yeni oluşturulacak gruplar (" + newTypes.Count + "):");
                 foreach (var plan in newTypes.Take(10))
                 {
-                    text.AppendLine("   • " + plan.Name + " — özellikler: " +
+                    text.AppendLine("   • " + plan.Name + " — bilgiler: " +
                                     JoinLimited(plan.AttachColumns.Select(c => c.PropertyName), 8));
                 }
                 if (newTypes.Count > 10)
                 {
-                    text.AppendLine("   ... ve " + (newTypes.Count - 10) + " cins daha");
+                    text.AppendLine("   ... ve " + (newTypes.Count - 10) + " grup daha");
                 }
             }
 
@@ -614,21 +614,21 @@ namespace DEPO_DURUMU
             if (newProperties.Count > 0)
             {
                 text.AppendLine();
-                text.AppendLine("Kütüphaneye yeni eklenecek özellikler (" + newProperties.Count + "): " + JoinLimited(newProperties, 12));
+                text.AppendLine("Kütüphaneye yeni eklenecek bilgiler (" + newProperties.Count + "): " + JoinLimited(newProperties, 12));
             }
 
             var extended = plans.Where(p => p.Existing != null && p.AttachColumns.Count > 0).ToList();
             if (extended.Count > 0)
             {
                 text.AppendLine();
-                text.AppendLine("Var olan cinslere yeni özellik eklenecek:");
+                text.AppendLine("Var olan gruplara yeni bilgi eklenecek:");
                 foreach (var plan in extended.Take(10))
                 {
                     text.AppendLine("   • " + plan.Name + ": " + JoinLimited(plan.AttachColumns.Select(c => c.PropertyName), 8));
                 }
                 if (extended.Count > 10)
                 {
-                    text.AppendLine("   ... ve " + (extended.Count - 10) + " cins daha");
+                    text.AppendLine("   ... ve " + (extended.Count - 10) + " grup daha");
                 }
             }
 
@@ -651,8 +651,8 @@ namespace DEPO_DURUMU
             if (blankTypeRows > 0)
             {
                 text.AppendLine();
-                text.AppendLine("Cins hücresi boş " + blankTypeRows + " satır, \"" + UnknownTypeName +
-                                "\" cinsine eklenecek.");
+                text.AppendLine("Grup hücresi boş " + blankTypeRows + " satır, \"" + UnknownTypeName +
+                                "\" grubuna eklenecek.");
             }
 
             text.AppendLine();
@@ -1810,8 +1810,8 @@ namespace DEPO_DURUMU
             }
 
             // 1. SORU: Cins sütunu hangisi?
-            var cinsColumn = PickColumn("Cins sütunu",
-                "Hangi sütun ürünün CİNSİNİ içeriyor?\n(Örnek: Bilgisayar, Telsiz)",
+            var cinsColumn = PickColumn("Grup sütunu",
+                "Hangi sütun ürünün GRUBUNU içeriyor?\n(Örnek: Bilgisayar, Telsiz)",
                 pickable, FindOptionIndex(pickable, headers, CinsHeader));
             if (cinsColumn < 0)
             {
@@ -2079,7 +2079,7 @@ namespace DEPO_DURUMU
             if (blankTypeRows > 0)
             {
                 message.AppendLine();
-                message.AppendLine("Cins hücresi boş olan satırlar \"" + UnknownTypeName + "\" cinsine eklendi.");
+                message.AppendLine("Grup hücresi boş olan satırlar \"" + UnknownTypeName + "\" grubuna eklendi.");
             }
             if (invalidYesNo.Count > 0)
             {

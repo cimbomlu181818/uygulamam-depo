@@ -13,7 +13,7 @@
                      VerticalContentAlignment="Center"
                      TextChanged="LogSearchBox_TextChanged" />
             <TextBlock x:Name="LogSearchPlaceholder"
-                       Text="Ara (zaman, cins, ürün, işlem, kullanıcı)"
+                       Text="Ara (zaman, grup, ürün, işlem, kullanıcı)"
                        Foreground="Gray"
                        Margin="6,0,0,0"
                        VerticalAlignment="Center"

@@ -15,11 +15,11 @@
                       ToolTip="Ana Sayfa"
                       Click="HomeMenu_Click" />
             <MenuItem Header="Ayarlar">
-                <MenuItem Header="Ürün Cinsleri" Click="TypesMenu_Click" />
-                <MenuItem Header="Özellikler" Click="PropertiesMenu_Click" />
+                <MenuItem Header="Ürün Grupları" Click="TypesMenu_Click" />
+                <MenuItem Header="Ürün Bilgileri" Click="PropertiesMenu_Click" />
                 <MenuItem Header="Log" Click="LogMenu_Click" />
-                <MenuItem Header="Tüm Cinsleri Dışa Aktar (CSV)..." Click="ExportAllTypesMenu_Click" />
-                <MenuItem Header="Tüm Cinsleri İçe Aktar (CSV)..." Click="ImportAllTypesMenu_Click" />
+                <MenuItem Header="Tüm Grupları Dışa Aktar (CSV)..." Click="ExportAllTypesMenu_Click" />
+                <MenuItem Header="Tüm Grupları İçe Aktar (CSV)..." Click="ImportAllTypesMenu_Click" />
                 <MenuItem Header="Hurdaya İçe Aktar (Excel/CSV)..." Click="ImportScrapMenu_Click" />
                 <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
                 <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
@@ -58,7 +58,7 @@
                     </Grid>
 
                     <TextBlock DockPanel.Dock="Top"
-                               Text="Ürün cinsleri "
+                               Text="Ürün grupları "
                                FontWeight="SemiBold"
                                TextWrapping="Wrap"
                                Margin="0,0,0,5" />
@@ -69,7 +69,7 @@
                                  VerticalContentAlignment="Center"
                                  TextChanged="TypeFilterBox_TextChanged" />
                         <TextBlock x:Name="TypeFilterPlaceholder"
-                                   Text="Cinste ara"
+                                   Text="Grupta ara"
                                    Foreground="Gray"
                                    Margin="6,0,0,0"
                                    VerticalAlignment="Center"
@@ -131,7 +131,7 @@
                                 Height="30"
                                 Margin="0,0,0,10" />
 
-                        <Button Content="Özellikleri düzenle"
+                        <Button Content="Ürün bilgilerini düzenle"
                                 Click="AssignPropertiesButton_Click"
                                 Height="30"
                                 Margin="0,0,0,10" />
@@ -147,12 +147,12 @@
                                 Height="30"
                                 Margin="0,0,0,10" />
 
-                        <Button Content="Dışa Aktar (Excel/CSV)"
+                        <Button Content="Grubu Dışa Aktar (Excel/CSV)"
                                 Click="ExportCsvButton_Click"
                                 Height="30"
                                 Margin="0,0,0,10" />
 
-                        <Button Content="İçe Aktar (CSV)"
+                        <Button Content="Gruba İçe Aktar (CSV)"
                                 Click="ImportCsvButton_Click"
                                 Height="30"
                                 Margin="0,0,0,10" />

@@ -213,15 +213,15 @@ namespace DEPO_DURUMU
             {
                 "Şunların hepsi kalıcı olarak silinir:",
                 "",
-                "   •  " + types.ToString("N0") + " ürün cinsi",
+                "   •  " + types.ToString("N0") + " ürün grubu",
                 "   •  " + products.ToString("N0") + " ürün",
-                "   •  " + properties.ToString("N0") + " özellik",
+                "   •  " + properties.ToString("N0") + " bilgi",
                 "   •  " + scrap.ToString("N0") + " hurda kaydı",
                 "   •  " + assignments.ToString("N0") + " zimmet kaydı",
                 "   •  " + handovers.ToString("N0") + " tutanak",
                 "   •  " + logs.ToString("N0") + " log kaydı",
                 "",
-                "Program ilk kurulmuş gibi boş açılır (yalnızca sabit özellikler olan " +
+                "Program ilk kurulmuş gibi boş açılır (yalnızca sabit bilgiler olan " +
                 "Seri No ve Sistem İsmi yeniden oluşturulur).",
                 "Bu işlem geri alınamaz."
             };

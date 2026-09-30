@@ -18,7 +18,7 @@
             <!-- SOL BÖLÜM: hurdadaki ürün cinsleri -->
             <DockPanel Grid.Column="0" Margin="10">
                 <TextBlock DockPanel.Dock="Top"
-                           Text="Hurdadaki ürün cinsleri (açmak için çift tıklayın)"
+                           Text="Hurdadaki ürün grupları (açmak için çift tıklayın)"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap"
                            Margin="0,0,0,5" />

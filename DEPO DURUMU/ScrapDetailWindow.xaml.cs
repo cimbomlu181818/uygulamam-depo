@@ -22,7 +22,9 @@ namespace DEPO_DURUMU
             _scrapProductId = item.Id;
             _quantity = item.Quantity;
             TitleText.Text = item.TypeName + " - Hurda Ürün Detayı";
-            SubtitleText.Text = "Hurdaya taşındı: " + item.ScrappedAt;
+            SubtitleText.Text = string.IsNullOrEmpty(item.ScrappedAt)
+                ? "Hurdaya içe aktarıldı"
+                : "Hurdaya taşındı: " + item.ScrappedAt;
 
             BuildView();
         }

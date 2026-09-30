@@ -8,13 +8,13 @@
 
     <StackPanel Margin="15">
 
-        <TextBlock Text="Ürün cinsi:" Margin="0,0,0,4" />
+        <TextBlock Text="Ürün grubu:" Margin="0,0,0,4" />
         <ComboBox x:Name="TypeCombo"
                   DisplayMemberPath="Name"
                   SelectionChanged="TypeCombo_SelectionChanged"
                   Margin="0,0,0,10" />
 
-        <TextBlock Text="Özellik:" Margin="0,0,0,4" />
+        <TextBlock Text="Bilgi:" Margin="0,0,0,4" />
         <ComboBox x:Name="PropertyCombo"
                   DisplayMemberPath="Name"
                   Margin="0,0,0,15" />

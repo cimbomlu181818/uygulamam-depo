@@ -1212,34 +1212,7 @@ namespace DEPO_DURUMU
                     quantity = 1;
                 }
 
-                // Seri No gibi tekil özellikleri, depoda ve hurdada önceden kontrol et.
-                var conflict = false;
-                foreach (var pair in columnToProperty)
-                {
-                    var property = pair.Value;
-                    if (!property.IsSerialNumber || pair.Key >= cells.Length)
-                    {
-                        continue;
-                    }
-
-                    var value = cells[pair.Key].Trim();
-                    if (string.IsNullOrEmpty(value))
-                    {
-                        continue;
-                    }
-
-                    if (ProductRepository.IsValueUsedByAnotherProduct(property.Id, value, -1) ||
-                        ScrapRepository.IsSerialNumberUsed(value))
-                    {
-                        skipped.Add(value);
-                        conflict = true;
-                    }
-                }
-
-                if (conflict)
-                {
-                    continue;
-                }
+                // İçe aktarmada Seri No tekilliği aranmaz: aynı seri no'lu satırların hepsi eklenir.
 
                 var productId = ProductRepository.Add(_currentType.Id, quantity);
 

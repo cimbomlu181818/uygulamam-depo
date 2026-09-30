@@ -35,7 +35,7 @@ namespace DEPO_DURUMU
                 {
                     if (IsFixed)
                     {
-                        return "(sabit özellik)";
+                        return "(sabit bilgi)";
                     }
 
                     return UsageCount > 0
@@ -171,7 +171,7 @@ namespace DEPO_DURUMU
             var name = NewPropertyNameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
             {
-                MessageBox.Show("Lütfen bir özellik adı yazın.", "Depo Durumu",
+                MessageBox.Show("Lütfen bir bilgi adı yazın.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -186,7 +186,7 @@ namespace DEPO_DURUMU
                 string.Compare(p.Name, name, turkishCulture, CompareOptions.IgnoreCase) == 0);
             if (propertyExists)
             {
-                MessageBox.Show("Bu özellik zaten var.", "Depo Durumu",
+                MessageBox.Show("Bu bilgi zaten var.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -196,7 +196,7 @@ namespace DEPO_DURUMU
             {
                 var confirm = MessageBox.Show(
                     "\"" + closeProperty + "\" mi demek istediniz?\n\n" +
-                    "Yine de \"" + name + "\" adında yeni bir özellik eklemek istiyor musunuz?",
+                    "Yine de \"" + name + "\" adında yeni bir bilgi eklemek istiyor musunuz?",
                     "Şunu mu demek istediniz?", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
                 if (confirm != MessageBoxResult.Yes)
@@ -217,14 +217,14 @@ namespace DEPO_DURUMU
             var selected = PropertyList.SelectedItem as PropertyRow;
             if (selected == null)
             {
-                MessageBox.Show("Önce listeden bir özellik seçin (adına tıklayın).", "Depo Durumu",
+                MessageBox.Show("Önce listeden bir bilgi seçin (adına tıklayın).", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             if (selected.IsFixed)
             {
-                MessageBox.Show("\"" + selected.Name + "\" sabit bir özelliktir, adı değiştirilemez.",
+                MessageBox.Show("\"" + selected.Name + "\" sabit bir bilgidir, adı değiştirilemez.",
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -252,7 +252,7 @@ namespace DEPO_DURUMU
 
             if (selected.Count == 0)
             {
-                MessageBox.Show("Önce silmek istediğin özellikleri işaretle.", "Depo Durumu",
+                MessageBox.Show("Önce silmek istediğin bilgileri işaretle.", "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -261,7 +261,7 @@ namespace DEPO_DURUMU
             var totalValues = selected.Sum(r => r.UsageCount);
 
             var question = new StringBuilder();
-            question.AppendLine(selected.Count + " özellik silinecek:");
+            question.AppendLine(selected.Count + " bilgi silinecek:");
             question.AppendLine(string.Join(", ", selected.Take(10).Select(r => r.Name)) +
                                 (selected.Count > 10 ? " ... (+" + (selected.Count - 10) + " tane daha)" : ""));
             question.AppendLine();
@@ -270,18 +270,18 @@ namespace DEPO_DURUMU
             {
                 if (totalValues > 0)
                 {
-                    question.AppendLine("DİKKAT: Bu özelliklere ait toplam " +
+                    question.AppendLine("DİKKAT: Bu bilgilere ait toplam " +
                                         totalValues.ToString("N0", CultureInfo.CurrentCulture) +
                                         " dolu değer de silinecek. Bu işlem geri alınamaz.");
                 }
                 else
                 {
-                    question.AppendLine("Seçili özelliklerde dolu değer yok.");
+                    question.AppendLine("Seçili bilgilerde dolu değer yok.");
                 }
             }
             else if (totalValues > 0)
             {
-                question.AppendLine("Dolu değeri olan özellikler silinmeden atlanır.");
+                question.AppendLine("Dolu değeri olan bilgiler silinmeden atlanır.");
             }
 
             question.AppendLine();
@@ -360,7 +360,7 @@ namespace DEPO_DURUMU
             }
 
             var message = new StringBuilder();
-            message.AppendLine(deleted.Count + " özellik silindi.");
+            message.AppendLine(deleted.Count + " bilgi silindi.");
             if (valuesDeleted > 0)
             {
                 message.AppendLine(valuesDeleted.ToString("N0", CultureInfo.CurrentCulture) + " dolu değer de silindi.");

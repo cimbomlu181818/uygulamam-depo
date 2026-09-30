@@ -500,7 +500,7 @@ namespace DEPO_DURUMU.Data
 
                     if (!ProductRepository.GetForType(type.Id).Any(p => p.Id == targetId))
                     {
-                        return "Çakışan ürün başka bir ürün cinsinde duruyor, üzerine yazılamaz. " +
+                        return "Çakışan ürün başka bir ürün grubunda duruyor, üzerine yazılamaz. " +
                                "İstersen \"ayrı ürün olarak getir\" seçeneğini kullan.";
                     }
 

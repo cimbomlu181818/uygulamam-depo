@@ -110,7 +110,7 @@ namespace DEPO_DURUMU
 
             HomeInfoText.Text = _items.Count == 0
                 ? "Hurdada hiç ürün yok."
-                : "Hurdada toplam " + _items.Count + " ürün var. Bir cinse çift tıklayarak içindeki ürünleri görebilirsiniz.";
+                : "Hurdada toplam " + _items.Count + " ürün var. Bir gruba çift tıklayarak içindeki ürünleri görebilirsiniz.";
 
             HomePage.Visibility = Visibility.Visible;
             TypePage.Visibility = Visibility.Collapsed;
@@ -430,7 +430,7 @@ namespace DEPO_DURUMU
             {
                 FilterItemsPanel.Children.Add(new TextBlock
                 {
-                    Text = "Bu cinste filtrelenecek alan yok.",
+                    Text = "Bu grupta filtrelenecek alan yok.",
                     Foreground = Brushes.Gray,
                     TextWrapping = TextWrapping.Wrap
                 });
