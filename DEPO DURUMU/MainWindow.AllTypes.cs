@@ -10,6 +10,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Xml;
 using DEPO_DURUMU.Data;
 
@@ -174,6 +175,440 @@ namespace DEPO_DURUMU
         }
 
         // =====================================================================
+        // EXCEL (.xlsx) DIŞA AKTAR: depo ve/veya hurda (ek kütüphane gerekmez)
+        // =====================================================================
+        //
+        // Üç seçenek: Depo + Hurda (tek dosya, iki sayfa), sadece Depo, sadece Hurda.
+        // Seri no gibi uzun değerler Excel'de bozulmasın diye metin olarak yazılır;
+        // sadece "Sıra No" ve "Adet" sayı olarak yazılır.
+
+        private const string ScrapDateHeader = "Hurdaya Taşınma Tarihi";
+
+        private class ExportSheet
+        {
+            public string Name;
+            public List<string[]> Rows;                                   // ilk satır başlıktır
+            public HashSet<int> NumericColumns = new HashSet<int>();      // sayı olarak yazılacak sütunlar
+        }
+
+        private void ExportBothExcelMenu_Click(object sender, RoutedEventArgs e)
+        {
+            ExportExcel("Depo_Hurda", true, true);
+        }
+
+        private void ExportDepotExcelMenu_Click(object sender, RoutedEventArgs e)
+        {
+            ExportExcel("Depo", true, false);
+        }
+
+        private void ExportScrapExcelMenu_Click(object sender, RoutedEventArgs e)
+        {
+            ExportExcel("Hurda", false, true);
+        }
+
+        private void ExportExcel(string fileBaseName, bool includeDepot, bool includeScrap)
+        {
+            var sheets = new List<ExportSheet>();
+            var depotCount = 0;
+            var scrapCount = 0;
+
+            try
+            {
+                if (includeDepot)
+                {
+                    sheets.Add(BuildDepotSheet(out depotCount));
+                }
+                if (includeScrap)
+                {
+                    sheets.Add(BuildScrapSheet(out scrapCount));
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Veriler okunamadı: " + ex.Message, "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (depotCount + scrapCount == 0)
+            {
+                MessageBox.Show("Dışa aktarılacak ürün yok.", "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Excel'e Dışa Aktar",
+                FileName = fileBaseName + "_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".xlsx",
+                Filter = "Excel dosyası (*.xlsx)|*.xlsx"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return;
+            }
+
+            try
+            {
+                WriteXlsx(dialog.FileName, sheets);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Dosya yazılamadı: " + ex.Message + "\n\nDosya Excel'de açıksa kapatıp tekrar dene.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (includeDepot)
+            {
+                LogRepository.Add(null, depotCount + " satır", "Dışa aktarıldı");
+            }
+            if (includeScrap)
+            {
+                LogRepository.Add(null, "Hurda: " + scrapCount + " satır", "Dışa aktarıldı");
+            }
+
+            string message;
+            if (includeDepot && includeScrap)
+            {
+                message = depotCount + " depo ürünü (\"Depo\" sayfası) ve " + scrapCount +
+                          " hurda ürünü (\"Hurda\" sayfası) dışa aktarıldı.";
+            }
+            else if (includeDepot)
+            {
+                message = depotCount + " depo ürünü dışa aktarıldı.";
+            }
+            else
+            {
+                message = scrapCount + " hurda ürünü dışa aktarıldı.";
+            }
+
+            MessageBox.Show(message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        /// <summary>Depodaki tüm ürünler: Grup, Sıra No, özellikler..., Adet.</summary>
+        private ExportSheet BuildDepotSheet(out int count)
+        {
+            count = 0;
+
+            var types = ProductTypeRepository.GetAll();
+            var propertiesByType = new Dictionary<int, List<PropertyDefinition>>();
+            var columnNames = new List<string>();
+
+            foreach (var type in types)
+            {
+                var properties = TypePropertyRepository.GetForType(type.Id);
+                propertiesByType[type.Id] = properties;
+
+                foreach (var property in properties)
+                {
+                    if (!columnNames.Contains(property.Name))
+                    {
+                        columnNames.Add(property.Name);
+                    }
+                }
+            }
+
+            var headers = new List<string> { "Grup", SiraNoHeader };
+            headers.AddRange(columnNames);
+            headers.Add(AdetHeader);
+
+            var sheet = new ExportSheet { Name = "Depo", Rows = new List<string[]>() };
+            sheet.Rows.Add(headers.ToArray());
+            sheet.NumericColumns.Add(1);
+            sheet.NumericColumns.Add(headers.Count - 1);
+
+            foreach (var type in types)
+            {
+                var properties = propertiesByType[type.Id];
+                var products = ProductRepository.GetForType(type.Id);
+                var rank = 0;
+
+                foreach (var product in products)
+                {
+                    rank++;
+                    var values = ProductRepository.GetValues(product.Id);
+
+                    var cells = new List<string> { type.Name, rank.ToString() };
+
+                    foreach (var columnName in columnNames)
+                    {
+                        var property = properties.FirstOrDefault(p => p.Name == columnName);
+                        var value = "";
+                        if (property != null && values.ContainsKey(property.Id))
+                        {
+                            value = values[property.Id];
+                        }
+                        cells.Add(value);
+                    }
+
+                    cells.Add(product.Quantity.ToString());
+                    sheet.Rows.Add(cells.ToArray());
+                    count++;
+                }
+            }
+
+            return sheet;
+        }
+
+        /// <summary>Hurdadaki tüm ürünler: Grup, Sıra No, özellikler..., Adet, Hurdaya Taşınma Tarihi.</summary>
+        private ExportSheet BuildScrapSheet(out int count)
+        {
+            count = 0;
+
+            var items = ScrapRepository.GetAll()
+                .OrderBy(i => i.TypeName, StringComparer.CurrentCultureIgnoreCase)
+                .ThenBy(i => i.OriginalSortOrder)
+                .ThenBy(i => i.Id)
+                .ToList();
+            var valuesByItem = ScrapRepository.GetAllValuesGrouped();
+
+            // Sütunlar hurdadaki değerlerin özellik adlarının birleşimidir (ilk görüldükleri sıraya göre).
+            var columnNames = new List<string>();
+            foreach (var item in items)
+            {
+                List<ScrapValue> itemValues;
+                if (!valuesByItem.TryGetValue(item.Id, out itemValues))
+                {
+                    continue;
+                }
+
+                foreach (var value in itemValues)
+                {
+                    if (!columnNames.Contains(value.PropertyName))
+                    {
+                        columnNames.Add(value.PropertyName);
+                    }
+                }
+            }
+
+            var headers = new List<string> { "Grup", SiraNoHeader };
+            headers.AddRange(columnNames);
+            headers.Add(AdetHeader);
+            headers.Add(ScrapDateHeader);
+
+            var sheet = new ExportSheet { Name = "Hurda", Rows = new List<string[]>() };
+            sheet.Rows.Add(headers.ToArray());
+            sheet.NumericColumns.Add(1);
+            sheet.NumericColumns.Add(headers.Count - 2);
+
+            string currentGroup = null;
+            var rank = 0;
+
+            foreach (var item in items)
+            {
+                if (currentGroup == null ||
+                    !string.Equals(currentGroup, item.TypeName, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    currentGroup = item.TypeName;
+                    rank = 0;
+                }
+                rank++;
+
+                List<ScrapValue> itemValues;
+                if (!valuesByItem.TryGetValue(item.Id, out itemValues))
+                {
+                    itemValues = new List<ScrapValue>();
+                }
+
+                var cells = new List<string> { item.TypeName, rank.ToString() };
+
+                foreach (var columnName in columnNames)
+                {
+                    var found = itemValues.FirstOrDefault(v => v.PropertyName == columnName);
+                    cells.Add(found != null ? (found.TextValue ?? "") : "");
+                }
+
+                cells.Add(item.Quantity.ToString());
+                cells.Add(item.ScrappedAt ?? "");
+                sheet.Rows.Add(cells.ToArray());
+                count++;
+            }
+
+            return sheet;
+        }
+
+        /// <summary>Basit bir .xlsx dosyası yazar (zip + XML); ek kütüphane gerekmez.</summary>
+        private static void WriteXlsx(string path, List<ExportSheet> sheets)
+        {
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write))
+            using (var zip = new ZipArchive(stream, ZipArchiveMode.Create))
+            {
+                const string xmlHeader = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>";
+                const string mainNs = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+                const string relNs = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+                const string pkgRelNs = "http://schemas.openxmlformats.org/package/2006/relationships";
+
+                // [Content_Types].xml
+                var types = new StringBuilder(xmlHeader);
+                types.Append("<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">");
+                types.Append("<Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\"/>");
+                types.Append("<Default Extension=\"xml\" ContentType=\"application/xml\"/>");
+                types.Append("<Override PartName=\"/xl/workbook.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml\"/>");
+                types.Append("<Override PartName=\"/xl/styles.xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml\"/>");
+                for (var i = 0; i < sheets.Count; i++)
+                {
+                    types.Append("<Override PartName=\"/xl/worksheets/sheet" + (i + 1) +
+                                 ".xml\" ContentType=\"application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml\"/>");
+                }
+                types.Append("</Types>");
+                AddZipText(zip, "[Content_Types].xml", types.ToString());
+
+                // _rels/.rels
+                AddZipText(zip, "_rels/.rels",
+                    xmlHeader + "<Relationships xmlns=\"" + pkgRelNs + "\">" +
+                    "<Relationship Id=\"rId1\" Type=\"" + relNs + "/officeDocument\" Target=\"xl/workbook.xml\"/>" +
+                    "</Relationships>");
+
+                // xl/workbook.xml
+                var workbook = new StringBuilder(xmlHeader);
+                workbook.Append("<workbook xmlns=\"" + mainNs + "\" xmlns:r=\"" + relNs + "\"><sheets>");
+                for (var i = 0; i < sheets.Count; i++)
+                {
+                    workbook.Append("<sheet name=\"" + XmlText(sheets[i].Name) + "\" sheetId=\"" + (i + 1) +
+                                    "\" r:id=\"rId" + (i + 1) + "\"/>");
+                }
+                workbook.Append("</sheets></workbook>");
+                AddZipText(zip, "xl/workbook.xml", workbook.ToString());
+
+                // xl/_rels/workbook.xml.rels
+                var workbookRels = new StringBuilder(xmlHeader);
+                workbookRels.Append("<Relationships xmlns=\"" + pkgRelNs + "\">");
+                for (var i = 0; i < sheets.Count; i++)
+                {
+                    workbookRels.Append("<Relationship Id=\"rId" + (i + 1) + "\" Type=\"" + relNs +
+                                        "/worksheet\" Target=\"worksheets/sheet" + (i + 1) + ".xml\"/>");
+                }
+                workbookRels.Append("<Relationship Id=\"rId" + (sheets.Count + 1) + "\" Type=\"" + relNs +
+                                    "/styles\" Target=\"styles.xml\"/>");
+                workbookRels.Append("</Relationships>");
+                AddZipText(zip, "xl/_rels/workbook.xml.rels", workbookRels.ToString());
+
+                // xl/styles.xml: 0 = normal, 1 = kalın başlık (açık mavi zemin)
+                AddZipText(zip, "xl/styles.xml",
+                    xmlHeader + "<styleSheet xmlns=\"" + mainNs + "\">" +
+                    "<fonts count=\"2\"><font><sz val=\"11\"/><name val=\"Calibri\"/></font>" +
+                    "<font><b/><sz val=\"11\"/><name val=\"Calibri\"/></font></fonts>" +
+                    "<fills count=\"3\"><fill><patternFill patternType=\"none\"/></fill>" +
+                    "<fill><patternFill patternType=\"gray125\"/></fill>" +
+                    "<fill><patternFill patternType=\"solid\"><fgColor rgb=\"FFD9E1F2\"/><bgColor indexed=\"64\"/></patternFill></fill></fills>" +
+                    "<borders count=\"1\"><border><left/><right/><top/><bottom/><diagonal/></border></borders>" +
+                    "<cellStyleXfs count=\"1\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\"/></cellStyleXfs>" +
+                    "<cellXfs count=\"2\"><xf numFmtId=\"0\" fontId=\"0\" fillId=\"0\" borderId=\"0\" xfId=\"0\"/>" +
+                    "<xf numFmtId=\"0\" fontId=\"1\" fillId=\"2\" borderId=\"0\" xfId=\"0\" applyFont=\"1\" applyFill=\"1\"/></cellXfs>" +
+                    "<cellStyles count=\"1\"><cellStyle name=\"Normal\" xfId=\"0\" builtinId=\"0\"/></cellStyles>" +
+                    "</styleSheet>");
+
+                // xl/worksheets/sheetN.xml
+                for (var i = 0; i < sheets.Count; i++)
+                {
+                    AddZipText(zip, "xl/worksheets/sheet" + (i + 1) + ".xml", BuildSheetXml(sheets[i], xmlHeader, mainNs));
+                }
+            }
+        }
+
+        private static string BuildSheetXml(ExportSheet sheet, string xmlHeader, string mainNs)
+        {
+            var rows = sheet.Rows;
+            var columnCount = rows[0].Length;
+
+            var xml = new StringBuilder(xmlHeader);
+            xml.Append("<worksheet xmlns=\"" + mainNs + "\">");
+            xml.Append("<sheetViews><sheetView workbookViewId=\"0\">" +
+                       "<pane ySplit=\"1\" topLeftCell=\"A2\" activePane=\"bottomLeft\" state=\"frozen\"/>" +
+                       "</sheetView></sheetViews>");
+
+            // Sütun genişlikleri: içeriğe göre (en az 10, en çok 45).
+            xml.Append("<cols>");
+            for (var c = 0; c < columnCount; c++)
+            {
+                var longest = 0;
+                for (var r = 0; r < rows.Count && r < 300; r++)
+                {
+                    if (c < rows[r].Length && rows[r][c].Length > longest)
+                    {
+                        longest = rows[r][c].Length;
+                    }
+                }
+
+                var width = Math.Min(45, Math.Max(10, longest + 2));
+                xml.Append("<col min=\"" + (c + 1) + "\" max=\"" + (c + 1) + "\" width=\"" + width + "\" customWidth=\"1\"/>");
+            }
+            xml.Append("</cols>");
+
+            xml.Append("<sheetData>");
+            for (var r = 0; r < rows.Count; r++)
+            {
+                xml.Append("<row r=\"" + (r + 1) + "\">");
+
+                for (var c = 0; c < columnCount; c++)
+                {
+                    var value = c < rows[r].Length ? (rows[r][c] ?? "") : "";
+                    if (r > 0 && value.Length == 0)
+                    {
+                        continue;   // boş hücre yazılmaz
+                    }
+
+                    var reference = ColumnLetter(c) + (r + 1);
+
+                    int number;
+                    if (r > 0 && sheet.NumericColumns.Contains(c) &&
+                        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out number))
+                    {
+                        xml.Append("<c r=\"" + reference + "\"><v>" + number.ToString(CultureInfo.InvariantCulture) + "</v></c>");
+                    }
+                    else
+                    {
+                        xml.Append("<c r=\"" + reference + "\" t=\"inlineStr\"" + (r == 0 ? " s=\"1\"" : "") +
+                                   "><is><t xml:space=\"preserve\">" + XmlText(value) + "</t></is></c>");
+                    }
+                }
+
+                xml.Append("</row>");
+            }
+            xml.Append("</sheetData>");
+
+            xml.Append("<autoFilter ref=\"A1:" + ColumnLetter(columnCount - 1) + rows.Count + "\"/>");
+            xml.Append("</worksheet>");
+            return xml.ToString();
+        }
+
+        private static void AddZipText(ZipArchive zip, string entryName, string text)
+        {
+            var entry = zip.CreateEntry(entryName);
+            using (var writer = new StreamWriter(entry.Open(), new UTF8Encoding(false)))
+            {
+                writer.Write(text);
+            }
+        }
+
+        /// <summary>XML içine yazılacak metni hazırlar: geçersiz karakterleri atar, özel işaretleri kaçırır.</summary>
+        private static string XmlText(string value)
+        {
+            var builder = new StringBuilder(value.Length);
+
+            foreach (var ch in value)
+            {
+                if (ch < ' ' && ch != '\t' && ch != '\n' && ch != '\r')
+                {
+                    continue;   // XML'de geçersiz denetim karakterleri
+                }
+
+                switch (ch)
+                {
+                    case '&': builder.Append("&amp;"); break;
+                    case '<': builder.Append("&lt;"); break;
+                    case '>': builder.Append("&gt;"); break;
+                    case '"': builder.Append("&quot;"); break;
+                    default: builder.Append(ch); break;
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        // =====================================================================
         // İÇE AKTAR
         // =====================================================================
 
@@ -207,106 +642,29 @@ namespace DEPO_DURUMU
                 return;   // kullanıcı sayfa seçiminden vazgeçti
             }
 
-            if (rows.Count < 2)
+            if (rows.Count < 1)
             {
-                MessageBox.Show("Dosyada, başlık satırından sonra en az bir veri satırı olmalı.",
+                MessageBox.Show("Dosyada okunacak satır bulunamadı.",
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Önce kısa, örnekli bilgi ekranı.
+            if (!ShowImportInfo("Tüm Grupları İçe Aktar", false))
+            {
+                return;
+            }
+
+            // Kullanıcı satırları ve sütunları kendisi ayarlar.
+            int cinsColumn, serialColumn, systemColumn;
+            rows = ShowImportSettings(rows, "Tüm Grupları İçe Aktar",
+                out cinsColumn, out serialColumn, out systemColumn);
+            if (rows == null)
+            {
                 return;
             }
 
             var headers = rows[0].Select(h => h.Trim()).ToArray();
-
-            // Kullanıcıya gösterilecek seçenekler: başlığı olan her sütun (yanında bir örnek değer).
-            var pickable = new List<KeyValuePair<int, string>>();
-            for (var i = 0; i < headers.Length; i++)
-            {
-                if (headers[i].Length > 0)
-                {
-                    pickable.Add(new KeyValuePair<int, string>(i, DescribeColumn(headers[i], rows, i)));
-                }
-            }
-
-            if (pickable.Count == 0)
-            {
-                MessageBox.Show("Dosyanın ilk satırında başlık bulunamadı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            // 1. SORU: Cins sütunu hangisi?
-            var cinsColumn = PickColumn("Grup sütunu",
-                "Hangi sütun ürünün GRUBUNU içeriyor?\n(Örnek: Bilgisayar, Telsiz)",
-                pickable, FindOptionIndex(pickable, headers, CinsHeader));
-            if (cinsColumn < 0)
-            {
-                return;
-            }
-
-            // 2. SORU: Sistem adı sütunu var mı? Varsa hangisi?
-            var systemOptions = pickable.Where(o => o.Key != cinsColumn).ToList();
-            var systemColumn = -1;
-
-            if (systemOptions.Count > 0)
-            {
-                var systemAnswer = MessageBox.Show(this,
-                    "Dosyada sistem adı (sistem ismi) sütunu var mı?\n\n" +
-                    "Evet: var, bir sonraki adımda sütunu seçeceksin.\n" +
-                    "Hayır: yok.\n" +
-                    "İptal: içe aktarmayı durdur.",
-                    "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-
-                if (systemAnswer == MessageBoxResult.Cancel || systemAnswer == MessageBoxResult.None)
-                {
-                    return;
-                }
-
-                if (systemAnswer == MessageBoxResult.Yes)
-                {
-                    var preselect = FindOptionIndex(systemOptions, headers, SistemIsmiHeader);
-                    if (preselect < 0)
-                    {
-                        preselect = FindOptionIndex(systemOptions, headers, "Sistem Adı");
-                    }
-
-                    systemColumn = PickColumn("Sistem adı sütunu",
-                        "Hangi sütun SİSTEM ADINI içeriyor?\n(Değerler uygulamadaki \"Sistem İsmi\" özelliğine yazılır.)",
-                        systemOptions, preselect);
-                    if (systemColumn < 0)
-                    {
-                        return;
-                    }
-                }
-            }
-
-            // 3. SORU: Seri numarası sütunu var mı? Varsa hangisi?
-            var serialOptions = pickable.Where(o => o.Key != cinsColumn && o.Key != systemColumn).ToList();
-            var serialColumn = -1;
-
-            if (serialOptions.Count > 0)
-            {
-                var serialAnswer = MessageBox.Show(this,
-                    "Dosyada seri numarası sütunu var mı?\n\n" +
-                    "Evet: var, bir sonraki adımda sütunu seçeceksin.\n" +
-                    "Hayır: yok.\n" +
-                    "İptal: içe aktarmayı durdur.",
-                    "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-
-                if (serialAnswer == MessageBoxResult.Cancel || serialAnswer == MessageBoxResult.None)
-                {
-                    return;
-                }
-
-                if (serialAnswer == MessageBoxResult.Yes)
-                {
-                    serialColumn = PickColumn("Seri numarası sütunu",
-                        "Hangi sütun SERİ NUMARASINI içeriyor?\n(Değerler uygulamadaki \"Seri No\" özelliğine yazılır.)",
-                        serialOptions, FindOptionIndex(serialOptions, headers, SeriNoHeader));
-                    if (serialColumn < 0)
-                    {
-                        return;
-                    }
-                }
-            }
 
             // Sütunları özelliklerle eşleştir, cinslere göre satırları grupla.
             var ignoredColumns = new List<string>();
@@ -325,7 +683,8 @@ namespace DEPO_DURUMU
 
             // Yazmadan önce tek bir özet göster, onay iste.
             if (!ConfirmImport(plans, columns, serialColumn >= 0 ? headers[serialColumn] : null,
-                systemColumn >= 0 ? headers[systemColumn] : null, blankTypeRows))
+                systemColumn >= 0 ? headers[systemColumn] : null, blankTypeRows,
+                BuildDuplicateSerialNote(rows, serialColumn)))
             {
                 return;
             }
@@ -589,7 +948,7 @@ namespace DEPO_DURUMU
 
         /// <summary>Hiçbir şey yazmadan önce, olacakların özetini gösterir.</summary>
         private bool ConfirmImport(List<ImportTypePlan> plans, List<ImportColumn> columns,
-            string serialHeader, string systemHeader, int blankTypeRows)
+            string serialHeader, string systemHeader, int blankTypeRows, string duplicateNote)
         {
             var text = new StringBuilder();
             text.AppendLine("Dosyadan " + plans.Sum(p => p.Rows.Count) + " ürün satırı okundu.");
@@ -638,7 +997,13 @@ namespace DEPO_DURUMU
                 text.AppendLine();
                 text.AppendLine("Seri numarası: \"" + serialHeader + "\" sütunu, \"" +
                                 (serialColumnItem != null ? serialColumnItem.PropertyName : SeriNoHeader) +
-                                "\" özelliğine yazılacak. Aynı seri no'lu ürünler eklenmez.");
+                                "\" özelliğine yazılacak.");
+            }
+
+            if (!string.IsNullOrEmpty(duplicateNote))
+            {
+                text.AppendLine();
+                text.AppendLine(duplicateNote);
             }
 
             if (systemHeader != null)
@@ -720,25 +1085,6 @@ namespace DEPO_DURUMU
                     logCommand.ExecuteNonQuery();
                 };
 
-                // Seri No tekilliği için, depodaki ve hurdadaki mevcut seri no'lar bir kez belleğe okunur
-                // (her satır için veritabanına sormaktan çok daha hızlı). Eklenen yeni seri no'lar da
-                // kümeye girer; böylece aynı dosyadaki tekrarlar da yakalanır.
-                var scrapSerials = LoadStringSet(connection,
-                    "SELECT TextValue FROM ScrapProductValues WHERE IsSerialNumber = 1 AND TextValue IS NOT NULL;");
-                var serialSets = new Dictionary<int, HashSet<string>>();
-                Func<int, HashSet<string>> getSerialSet = propertyId =>
-                {
-                    HashSet<string> set;
-                    if (!serialSets.TryGetValue(propertyId, out set))
-                    {
-                        set = LoadStringSet(connection,
-                            "SELECT TextValue FROM ProductValues WHERE PropertyId = @propId AND TextValue IS NOT NULL;",
-                            new SQLiteParameter("@propId", propertyId));
-                        serialSets[propertyId] = set;
-                    }
-                    return set;
-                };
-
                 // 1) Kütüphanede olmayan özellikleri oluştur.
                 foreach (var column in columns.Where(c => c.Property == null).ToList())
                 {
@@ -807,34 +1153,6 @@ namespace DEPO_DURUMU
                             quantity = 1;
                         }
 
-                        // Seri No tekilliği: depoda ve hurdada kontrol et (uygulamadaki kuralla aynı).
-                        var conflict = false;
-                        foreach (var serialCheck in plan.WriteColumns)
-                        {
-                            if (!serialCheck.IsSerialNumberProperty)
-                            {
-                                continue;
-                            }
-
-                            var serialValue = Cell(cells, serialCheck.Index);
-                            if (serialValue.Length == 0)
-                            {
-                                continue;
-                            }
-
-                            if (getSerialSet(serialCheck.Property.Id).Contains(serialValue) ||
-                                scrapSerials.Contains(serialValue))
-                            {
-                                result.SkippedSerials.Add(serialValue);
-                                conflict = true;
-                            }
-                        }
-
-                        if (conflict)
-                        {
-                            continue;
-                        }
-
                         productCommand.Parameters["@typeId"].Value = typeId;
                         productCommand.Parameters["@sortOrder"].Value = nextSortOrder;
                         productCommand.Parameters["@quantity"].Value = quantity;
@@ -866,10 +1184,6 @@ namespace DEPO_DURUMU
                             valueCommand.Parameters["@textValue"].Value = value;
                             valueCommand.ExecuteNonQuery();
 
-                            if (write.IsSerialNumberProperty && value.Length > 0)
-                            {
-                                getSerialSet(write.Property.Id).Add(value);
-                            }
                         }
 
                         result.Added++;
@@ -1168,6 +1482,8 @@ namespace DEPO_DURUMU
         /// </summary>
         private List<string[]> ReadTableFile(string path)
         {
+            _tableRowNumbers = new List<int>();
+
             var bytes = ReadAllBytesShared(path);
 
             // .xlsx / .xlsm bir zip dosyasıdır: "PK" ile başlar.
@@ -1189,7 +1505,10 @@ namespace DEPO_DURUMU
                 throw new InvalidOperationException("Bu dosya CSV ya da Excel (.xlsx) dosyası gibi görünmüyor.");
             }
 
-            return ParseCsvText(text, DetectSeparator(text));
+            var csvRowNumbers = new List<int>();
+            var csvRows = ParseCsvText(text, DetectSeparator(text), csvRowNumbers);
+            _tableRowNumbers = csvRowNumbers;
+            return csvRows;
         }
 
         /// <summary>Dosya Excel'de açıkken de okunabilsin diye paylaşımlı okur.</summary>
@@ -1293,8 +1612,22 @@ namespace DEPO_DURUMU
                 }
 
                 var rows = new List<string[]>();
+                var lastRowNumber = 0;
                 foreach (XmlNode rowNode in sheet.SelectNodes("//*[local-name()='row']"))
                 {
+                    // Excel'deki gerçek satır numarası (boş satırlar atlansa da numara korunur).
+                    var rowNumber = lastRowNumber + 1;
+                    var rowElement = rowNode as XmlElement;
+                    if (rowElement != null)
+                    {
+                        int parsedRowNumber;
+                        if (int.TryParse(rowElement.GetAttribute("r"), out parsedRowNumber) && parsedRowNumber > 0)
+                        {
+                            rowNumber = parsedRowNumber;
+                        }
+                    }
+                    lastRowNumber = rowNumber;
+
                     var cellsByColumn = new Dictionary<int, string>();
                     var maxColumn = -1;
                     var nextColumn = 0;
@@ -1339,6 +1672,7 @@ namespace DEPO_DURUMU
                         line[c] = cellsByColumn.TryGetValue(c, out cellValue) ? cellValue : "";
                     }
                     rows.Add(line);
+                    _tableRowNumbers.Add(rowNumber);
                 }
 
                 return rows;
@@ -1687,7 +2021,7 @@ namespace DEPO_DURUMU
         }
 
         /// <summary>Çift tırnak içinde ayraç ve satır sonu olabilen basit CSV okuyucu. Tamamen boş satırlar atılır.</summary>
-        private static List<string[]> ParseCsvText(string text, char separator)
+        private static List<string[]> ParseCsvText(string text, char separator, List<int> rowNumbers = null)
         {
             var rows = new List<string[]>();
             var current = new List<string>();
@@ -1751,10 +2085,21 @@ namespace DEPO_DURUMU
                 rows.Add(current.ToArray());
             }
 
-            return rows
-                .Where(line => line.Any(cell => cell.Trim().Length > 0))
-                .Select(line => line.Select(UnwrapExcelText).ToArray())
-                .ToList();
+            // Tamamen boş satırlar atılır; kalanların dosyadaki gerçek sıra numarası ayrıca döner.
+            var kept = new List<string[]>();
+            for (var i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].Any(cell => cell.Trim().Length > 0))
+                {
+                    kept.Add(rows[i].Select(UnwrapExcelText).ToArray());
+                    if (rowNumbers != null)
+                    {
+                        rowNumbers.Add(i + 1);
+                    }
+                }
+            }
+
+            return kept;
         }
 
         // =====================================================================
@@ -1762,8 +2107,9 @@ namespace DEPO_DURUMU
         // =====================================================================
         //
         // Excel/CSV dosyasındaki satırlar doğrudan HURDA tablolarına yazılır. Gerçek depoda
-        // cins, özellik ya da ürün oluşturulmaz/değiştirilmez. Hurdadan geri getirirken cins ve
+        // grup, özellik ya da ürün oluşturulmaz/değiştirilmez. Hurdadan geri getirirken grup ve
         // özellikler eksikse zaten otomatik oluşturulur. Tarih yazılmaz (boş kalır).
+        // Aynı seri no'lu satırların hepsi eklenir (içe aktarmada seri no tekilliği aranmaz).
 
         private class ScrapImportRow
         {
@@ -1803,92 +2149,41 @@ namespace DEPO_DURUMU
                 return;   // kullanıcı sayfa seçiminden vazgeçti
             }
 
-            if (rows.Count < 2)
+            if (rows.Count < 1)
             {
-                MessageBox.Show("Dosyada, başlık satırından sonra en az bir veri satırı olmalı.",
+                MessageBox.Show("Dosyada okunacak satır bulunamadı.",
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Önce kısa, örnekli bilgi ekranı.
+            if (!ShowImportInfo("Hurdaya İçe Aktar", true))
+            {
+                return;
+            }
+
+            // Kullanıcı satırları ve sütunları kendisi ayarlar.
+            int cinsColumn, serialColumn, systemColumn;
+            rows = ShowImportSettings(rows, "Hurdaya İçe Aktar",
+                out cinsColumn, out serialColumn, out systemColumn);
+            if (rows == null)
+            {
                 return;
             }
 
             var headers = rows[0].Select(h => h.Trim()).ToArray();
 
-            var pickable = new List<KeyValuePair<int, string>>();
-            for (var i = 0; i < headers.Length; i++)
-            {
-                if (headers[i].Length > 0)
-                {
-                    pickable.Add(new KeyValuePair<int, string>(i, DescribeColumn(headers[i], rows, i)));
-                }
-            }
-
-            if (pickable.Count == 0)
-            {
-                MessageBox.Show("Dosyanın ilk satırında başlık bulunamadı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            // 1. SORU: Cins sütunu hangisi?
-            var cinsColumn = PickColumn("Grup sütunu",
-                "Hangi sütun ürünün GRUBUNU içeriyor?\n(Örnek: Bilgisayar, Telsiz)",
-                pickable, FindOptionIndex(pickable, headers, CinsHeader));
-            if (cinsColumn < 0)
-            {
-                return;
-            }
-
-            // 2. SORU: Seri numarası sütunu var mı? Varsa hangisi?
-            var serialOptions = pickable.Where(o => o.Key != cinsColumn).ToList();
-            var serialColumn = -1;
-
-            if (serialOptions.Count > 0)
-            {
-                var serialAnswer = MessageBox.Show(this,
-                    "Dosyada seri numarası sütunu var mı?\n\n" +
-                    "Evet: var, bir sonraki adımda sütunu seçeceksin.\n" +
-                    "Hayır: yok.\n" +
-                    "İptal: içe aktarmayı durdur.",
-                    "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-
-                if (serialAnswer == MessageBoxResult.Cancel || serialAnswer == MessageBoxResult.None)
-                {
-                    return;
-                }
-
-                if (serialAnswer == MessageBoxResult.Yes)
-                {
-                    serialColumn = PickColumn("Seri numarası sütunu",
-                        "Hangi sütun SERİ NUMARASINI içeriyor?",
-                        serialOptions, FindOptionIndex(serialOptions, headers, SeriNoHeader));
-                    if (serialColumn < 0)
-                    {
-                        return;
-                    }
-                }
-            }
-
-            // Sütunları hazırla (özellik adı, veri tipi, seri no işareti).
             var ignoredColumns = new List<string>();
             int quantityColumn;
-            var columns = BuildImportColumns(rows, headers, cinsColumn, serialColumn, -1, out quantityColumn, ignoredColumns);
+            var columns = BuildImportColumns(rows, headers, cinsColumn, serialColumn, systemColumn,
+                out quantityColumn, ignoredColumns);
 
-            // Seri No tekilliği: depoda ve hurdada zaten olan seri no'lar tekrar eklenmez.
-            HashSet<string> knownSerials;
-            using (var connection = Database.OpenConnection())
-            {
-                knownSerials = LoadStringSet(connection,
-                    "SELECT pv.TextValue FROM ProductValues pv " +
-                    "JOIN PropertyDefinitions pd ON pd.Id = pv.PropertyId " +
-                    "WHERE pd.IsSerialNumber = 1 AND pv.TextValue IS NOT NULL;");
-                knownSerials.UnionWith(LoadStringSet(connection,
-                    "SELECT TextValue FROM ScrapProductValues WHERE IsSerialNumber = 1 AND TextValue IS NOT NULL;"));
-            }
+            var duplicateNote = BuildDuplicateSerialNote(rows, serialColumn);
 
             // Satırları cinslerine göre sırala; her cinsin kendi sırası dosyadaki sırası olur.
             var items = new List<ScrapImportRow>();
             var typeNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             var rankByType = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            var skippedSerials = new List<string>();
             var blankTypeRows = 0;
 
             for (var r = 1; r < rows.Count; r++)
@@ -1913,31 +2208,6 @@ namespace DEPO_DURUMU
                 {
                     canonicalName = typeName;
                     typeNames[typeName] = canonicalName;
-                }
-
-                var conflict = false;
-                foreach (var serialCheck in columns.Where(c => c.IsSerialNumberProperty))
-                {
-                    var serialValue = Cell(cells, serialCheck.Index);
-                    if (serialValue.Length > 0 && knownSerials.Contains(serialValue))
-                    {
-                        skippedSerials.Add(serialValue);
-                        conflict = true;
-                    }
-                }
-
-                if (conflict)
-                {
-                    continue;
-                }
-
-                foreach (var serialAdd in columns.Where(c => c.IsSerialNumberProperty))
-                {
-                    var serialValue = Cell(cells, serialAdd.Index);
-                    if (serialValue.Length > 0)
-                    {
-                        knownSerials.Add(serialValue);
-                    }
                 }
 
                 var quantity = 1;
@@ -1979,11 +2249,10 @@ namespace DEPO_DURUMU
             {
                 summary.AppendLine("   • " + group.Key + ": " + group.Count() + " satır");
             }
-            if (skippedSerials.Count > 0)
+            if (!string.IsNullOrEmpty(duplicateNote))
             {
                 summary.AppendLine();
-                summary.AppendLine("Seri no depoda/hurdada zaten olduğu için eklenmeyecek (" +
-                                   skippedSerials.Count + "): " + JoinLimited(skippedSerials, 8));
+                summary.AppendLine(duplicateNote);
             }
             summary.AppendLine();
             summary.AppendLine("Gerçek depoya hiçbir şey eklenmez ve değişmez.");
@@ -2121,6 +2390,1484 @@ namespace DEPO_DURUMU
             {
                 ShowHome();
             }
+        }
+
+        // =====================================================================
+        // AYNI SERİ NO UYARISI (içe aktarmada engel değil, sadece bilgi)
+        // =====================================================================
+
+        /// <summary>
+        /// İçe aktarılacak satırlarda (ya da depoda/hurdada zaten) aynı seri no birden fazla
+        /// geçiyorsa bir bilgi cümlesi döner; yoksa null. İçe aktarmada bunlar engellenmez.
+        /// </summary>
+        private string BuildDuplicateSerialNote(List<string[]> rows, int serialColumn)
+        {
+            if (serialColumn < 0)
+            {
+                return null;
+            }
+
+            var counts = new Dictionary<string, int>(StringComparer.Ordinal);
+            var order = new List<string>();
+
+            for (var r = 1; r < rows.Count; r++)
+            {
+                var value = Cell(rows[r], serialColumn);
+                if (value.Length == 0)
+                {
+                    continue;
+                }
+
+                int count;
+                if (!counts.TryGetValue(value, out count))
+                {
+                    order.Add(value);
+                }
+                counts[value] = count + 1;
+            }
+
+            HashSet<string> existing;
+            using (var connection = Database.OpenConnection())
+            {
+                existing = LoadStringSet(connection,
+                    "SELECT pv.TextValue FROM ProductValues pv " +
+                    "JOIN PropertyDefinitions pd ON pd.Id = pv.PropertyId " +
+                    "WHERE pd.IsSerialNumber = 1 AND pv.TextValue IS NOT NULL;");
+                existing.UnionWith(LoadStringSet(connection,
+                    "SELECT TextValue FROM ScrapProductValues WHERE IsSerialNumber = 1 AND TextValue IS NOT NULL;"));
+            }
+
+            var duplicates = new List<string>();
+            foreach (var value in order)
+            {
+                var inDatabase = existing.Contains(value);
+                if (counts[value] > 1 || inDatabase)
+                {
+                    duplicates.Add(value + " (dosyada " + counts[value] + " kez" +
+                                   (inDatabase ? ", depoda/hurdada da var" : "") + ")");
+                }
+            }
+
+            if (duplicates.Count == 0)
+            {
+                return null;
+            }
+
+            return "Aynı seri no'ya sahip ürünler var: " + JoinLimited(duplicates, 8) +
+                   ". Hepsi olduğu gibi eklenecek.";
+        }
+
+        // =====================================================================
+        // İÇE AKTARMA AYARLARI PENCERESİ
+        // =====================================================================
+        //
+        // Kullanıcı dosyanın ilk satırlarını (Excel'deki satır numaralarıyla) görür; sütun
+        // başlıklarının hangi satırda, ürünlerin hangi satırdan başladığını kendisi yazar ve
+        // her sütunun ne olduğunu kendisi seçer. Program hiçbir şeyi tahmin etmez; sadece
+        // bilinen başlıkları (Grup, Seri No, Adet...) hazır seçili getirir, kullanıcı değiştirebilir.
+        // Sonuç: ilk satırı sütun adları, kalan satırları ürünler olan, sütun sırası korunmuş bir tablo.
+
+        private const string RoleOther = "Diğer özellik (marka, model...)";
+        private const string RoleCins = "Grup (ürünün türü)";
+        private const string RoleSerial = "Seri No (ürünün seri numarası)";
+        private const string RoleQuantity = "Adet (kaç tane olduğu)";
+        private const string RoleSystem = "Sistem Adı (ETMYS Adı)";
+        private const string RoleSkip = "Alma (aktarma)";
+        private const string EmptySample = "(boş)";
+
+        // Dosyadaki satırların Excel'deki gerçek numaraları (boş satırlar atlandığı için ayrıca tutulur).
+        private List<int> _tableRowNumbers = new List<int>();
+
+        private class SettingsColumn
+        {
+            public int Index;
+            public string Letter;
+            public TextBlock HeaderInfo;
+            public TextBlock Samples;
+            public TextBox NameBox;
+            public ComboBox RoleBox;
+            public bool NameEdited;
+            public bool RoleEdited;
+            public bool HasData;
+        }
+
+        private List<string[]> ShowImportSettings(List<string[]> rows, string title,
+            out int cinsColumn, out int serialColumn, out int systemColumn)
+        {
+            cinsColumn = -1;
+            serialColumn = -1;
+            systemColumn = -1;
+
+            var numbers = new List<int>(_tableRowNumbers);
+            if (numbers.Count != rows.Count)
+            {
+                numbers = new List<int>();
+                for (var i = 0; i < rows.Count; i++)
+                {
+                    numbers.Add(i + 1);
+                }
+            }
+
+            var width = 1;
+            foreach (var row in rows)
+            {
+                if (row.Length > width)
+                {
+                    width = row.Length;
+                }
+            }
+
+            var window = new Window
+            {
+                Title = title + " — İçe Aktarma Ayarları",
+                Width = 1000,
+                Height = 780,
+                MinWidth = 720,
+                MinHeight = 520,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ShowInTaskbar = false,
+                Background = Brushes.White,
+                FontSize = 13
+            };
+
+            var root = new DockPanel { Margin = new Thickness(14) };
+
+            // ---------- 1. adım açıklaması (yanıp söner) ----------
+            var step1 = MakeStepBanner("1) Satırları belirle:",
+                "Üstte İL, CİNS, SERİ NO gibi başlıkların yazdığı satırın numarasını ve ürünlerin başladığı satırın numarasını yaz.",
+                "Örnek: 1. satırda İL | CİNS | SERİ NO | SİSTEM ADI | MARKA | NOT yazıyorsa başlık satırı 1, " +
+                "ürünler 2. satırdan başlar. Başlık yoksa \"Başlık yok\"u işaretle.");
+            DockPanel.SetDock(step1, Dock.Top);
+
+            // ---------- Butonlar ----------
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 10, 0, 0)
+            };
+            DockPanel.SetDock(buttons, Dock.Bottom);
+
+            var okButton = new Button
+            {
+                Content = "Devam",
+                Width = 100,
+                Padding = new Thickness(0, 5, 0, 5),
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x6F, 0xD4))
+            };
+            var cancelButton = new Button { Content = "İptal", Width = 90, Padding = new Thickness(0, 5, 0, 5), IsCancel = true };
+            buttons.Children.Add(okButton);
+            buttons.Children.Add(cancelButton);
+
+            // ---------- Önizleme ----------
+            var previewCount = Math.Min(rows.Count, 40);
+            var shownColumns = Math.Min(width, 40);
+
+            var headerBrush = new SolidColorBrush(Color.FromRgb(0xCF, 0xE8, 0xFF));
+            var dataBrush = new SolidColorBrush(Color.FromRgb(0xDF, 0xF5, 0xDF));
+            var otherBrush = new SolidColorBrush(Color.FromRgb(0xEE, 0xEE, 0xEE));
+
+            var legend = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 4) };
+            legend.Children.Add(MakeLegendItem(headerBrush, "Başlık satırı (İL, CİNS gibi yazılar)"));
+            legend.Children.Add(MakeLegendItem(dataBrush, "Ürün satırları"));
+            legend.Children.Add(MakeLegendItem(otherBrush, "Alınmayacak satırlar"));
+            if (rows.Count > previewCount)
+            {
+                legend.Children.Add(new TextBlock
+                {
+                    Text = "(İlk " + previewCount + " satır gösteriliyor)",
+                    Foreground = Brushes.DimGray,
+                    Margin = new Thickness(10, 0, 0, 0)
+                });
+            }
+            DockPanel.SetDock(legend, Dock.Top);
+
+            var previewGrid = new Grid();
+            previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(56) });
+            for (var c = 0; c < shownColumns; c++)
+            {
+                previewGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(120) });
+            }
+            for (var r = 0; r <= previewCount; r++)
+            {
+                previewGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            }
+
+            var cornerCell = MakePreviewCell("Satır", true);
+            cornerCell.Background = Brushes.WhiteSmoke;
+            Grid.SetRow(cornerCell, 0);
+            Grid.SetColumn(cornerCell, 0);
+            previewGrid.Children.Add(cornerCell);
+
+            for (var c = 0; c < shownColumns; c++)
+            {
+                var letterCell = MakePreviewCell(ColumnLetter(c), true);
+                letterCell.Background = Brushes.WhiteSmoke;
+                Grid.SetRow(letterCell, 0);
+                Grid.SetColumn(letterCell, c + 1);
+                previewGrid.Children.Add(letterCell);
+            }
+
+            var previewRowCells = new List<Border[]>();
+            for (var i = 0; i < previewCount; i++)
+            {
+                var cellsOfRow = new Border[shownColumns + 1];
+
+                var numberCell = MakePreviewCell(numbers[i].ToString(), true);
+                Grid.SetRow(numberCell, i + 1);
+                Grid.SetColumn(numberCell, 0);
+                previewGrid.Children.Add(numberCell);
+                cellsOfRow[0] = numberCell;
+
+                for (var c = 0; c < shownColumns; c++)
+                {
+                    var cell = MakePreviewCell(Cell(rows[i], c), false);
+                    Grid.SetRow(cell, i + 1);
+                    Grid.SetColumn(cell, c + 1);
+                    previewGrid.Children.Add(cell);
+                    cellsOfRow[c + 1] = cell;
+                }
+
+                previewRowCells.Add(cellsOfRow);
+            }
+
+            var previewScroll = new ScrollViewer
+            {
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Height = 190,
+                Content = previewGrid,
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(1)
+            };
+            DockPanel.SetDock(previewScroll, Dock.Top);
+
+            // ---------- Satır ayarları ----------
+            Func<string, TextBlock> makeLabel = text => new TextBlock
+            {
+                Text = text,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+
+            var headerBox = new TextBox { Width = 60, Text = numbers[0].ToString(), VerticalContentAlignment = VerticalAlignment.Center };
+            var noHeaderCheck = new CheckBox
+            {
+                Content = "Başlık yok (dosyada İL, CİNS gibi yazılar yok)",
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(14, 0, 0, 0)
+            };
+            var startBox = new TextBox
+            {
+                Width = 60,
+                Text = (numbers.Count > 1 ? numbers[1] : numbers[0] + 1).ToString(),
+                VerticalContentAlignment = VerticalAlignment.Center
+            };
+            var endBox = new TextBox { Width = 60, VerticalContentAlignment = VerticalAlignment.Center };
+
+            var line1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
+            line1.Children.Add(makeLabel("Başlıklar şu satırda:"));
+            line1.Children.Add(headerBox);
+            line1.Children.Add(noHeaderCheck);
+
+            var line2 = new StackPanel { Orientation = Orientation.Horizontal };
+            line2.Children.Add(makeLabel("Ürünler şu satırdan başlıyor:"));
+            line2.Children.Add(startBox);
+            var untilLabel = makeLabel("şu satıra kadar:");
+            untilLabel.Margin = new Thickness(18, 0, 6, 0);
+            line2.Children.Add(untilLabel);
+            line2.Children.Add(endBox);
+            line2.Children.Add(new TextBlock
+            {
+                Text = "(boş bırakırsan dosyanın sonuna kadar)",
+                Foreground = Brushes.DimGray,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
+            });
+
+            var settingsInner = new StackPanel();
+            settingsInner.Children.Add(line1);
+            settingsInner.Children.Add(line2);
+            var settingsPanel = new Border
+            {
+                Child = settingsInner,
+                Background = new SolidColorBrush(Color.FromRgb(0xF7, 0xF7, 0xF7)),
+                BorderBrush = Brushes.LightGray,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 6, 0, 10)
+            };
+            DockPanel.SetDock(settingsPanel, Dock.Top);
+
+            // ---------- 2. adım açıklaması (yanıp söner) ----------
+            var step2 = MakeStepBanner("2) Sütunları tanıt:",
+                "Aşağıdaki listede her sütunda ne yazdığını seç, kullanmayacaklarına \"Alma\" de.",
+                "Örnek: altında LMXLKD9 gibi numaralar varsa \"Seri No\", KİŞİSEL BİLGİSAYAR gibi türler varsa \"Grup\" seç.");
+            DockPanel.SetDock(step2, Dock.Top);
+
+            // ---------- Sütun listesi ----------
+            var columnsTitle = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
+            DockPanel.SetDock(columnsTitle, Dock.Top);
+
+            var bulkButton = new Button
+            {
+                Content = "Veri olan tüm sütunları al",
+                Padding = new Thickness(10, 3, 10, 3)
+            };
+            DockPanel.SetDock(bulkButton, Dock.Right);
+            columnsTitle.Children.Add(bulkButton);
+
+            var helpButton = new Button
+            {
+                Content = "💡 Hangi sütuna ne seçmeliyim?",
+                Padding = new Thickness(10, 3, 10, 3),
+                Margin = new Thickness(0, 0, 8, 0)
+            };
+            DockPanel.SetDock(helpButton, Dock.Right);
+            columnsTitle.Children.Add(helpButton);
+
+            columnsTitle.Children.Add(new TextBlock
+            {
+                Text = "Her sütunda ne yazdığını seç",
+                FontWeight = FontWeights.Bold,
+                FontSize = 15,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+
+            Func<Grid> newRowGrid = () =>
+            {
+                var g = new Grid();
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
+                return g;
+            };
+
+            var columnsPanel = new StackPanel();
+
+            var titleRow = newRowGrid();
+            var titleTexts = new[]
+            {
+                "Sütun",
+                "Bu sütunda yazanlar (ilk 3 ürün)",
+                "Program bu bilgiye ne ad versin?",
+                "Bu sütunda ne yazıyor?"
+            };
+            for (var t = 0; t < titleTexts.Length; t++)
+            {
+                var titleCell = new TextBlock
+                {
+                    Text = titleTexts[t],
+                    FontWeight = FontWeights.Bold,
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(6, 4, 4, 4)
+                };
+                Grid.SetColumn(titleCell, t);
+                titleRow.Children.Add(titleCell);
+            }
+            titleRow.Background = Brushes.WhiteSmoke;
+            columnsPanel.Children.Add(titleRow);
+
+            var columnsScroll = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = columnsPanel,
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(1)
+            };
+
+            // ---------- Durum ve yardımcı işlevler ----------
+            var updating = false;
+            var startEdited = false;
+            var columnItems = new List<SettingsColumn>();
+
+            Func<TextBox, int> readInt = box =>
+            {
+                int value;
+                return int.TryParse(box.Text.Trim(), out value) && value > 0 ? value : -1;
+            };
+
+            // Sütun başlıkları satırı: 0 = yok, -1 = geçersiz yazı.
+            Func<int> headerRowNumber = () => noHeaderCheck.IsChecked == true ? 0 : readInt(headerBox);
+            Func<int> startRowNumber = () => readInt(startBox);
+            Func<int> endRowNumber = () => endBox.Text.Trim().Length == 0 ? int.MaxValue : readInt(endBox);
+
+            Func<int, bool> isDataRow = n =>
+            {
+                var start = startRowNumber();
+                return start > 0 && n >= start && n <= endRowNumber() && n != headerRowNumber();
+            };
+
+            // Başlık satırından sonraki ilk dolu satır (ürünlerin başlangıcı için varsayılan).
+            Func<int> nextRowAfterHeader = () =>
+            {
+                var h = headerRowNumber();
+                if (h <= 0)
+                {
+                    return numbers[0];
+                }
+                foreach (var n in numbers)
+                {
+                    if (n > h)
+                    {
+                        return n;
+                    }
+                }
+                return h + 1;
+            };
+
+            Action refreshPreview = () =>
+            {
+                var h = headerRowNumber();
+                for (var i = 0; i < previewRowCells.Count; i++)
+                {
+                    var n = numbers[i];
+                    Brush back;
+                    if (n == h)
+                    {
+                        back = headerBrush;
+                    }
+                    else if (isDataRow(n))
+                    {
+                        back = dataBrush;
+                    }
+                    else
+                    {
+                        back = otherBrush;
+                    }
+
+                    foreach (var cell in previewRowCells[i])
+                    {
+                        cell.Background = back;
+                    }
+                }
+            };
+
+            Action applyDefaults = () =>
+            {
+                var previous = updating;
+                updating = true;
+
+                string[] headerCells = null;
+                var h = headerRowNumber();
+                if (h > 0)
+                {
+                    var headerIndex = numbers.IndexOf(h);
+                    if (headerIndex >= 0)
+                    {
+                        headerCells = rows[headerIndex];
+                    }
+                }
+
+                foreach (var col in columnItems)
+                {
+                    var headerText = headerCells != null && col.Index < headerCells.Length
+                        ? headerCells[col.Index].Trim()
+                        : "";
+
+                    col.HeaderInfo.Text = headerText.Length > 0 ? "(" + headerText + ")" : "";
+
+                    if (!col.NameEdited)
+                    {
+                        col.NameBox.Text = headerText;
+                    }
+                    if (!col.RoleEdited)
+                    {
+                        col.RoleBox.SelectedItem = DefaultRoleFor(headerText);
+                    }
+
+                    var sample = SampleText(rows, numbers, col.Index, isDataRow);
+                    col.Samples.Text = sample;
+                    col.HasData = sample != EmptySample;
+                }
+
+                updating = previous;
+            };
+
+            // ---------- Sütun satırlarını oluştur (dolu olan her sütun için bir satır) ----------
+            var roleNames = new[] { RoleOther, RoleCins, RoleSerial, RoleQuantity, RoleSystem, RoleSkip };
+
+            for (var c = 0; c < width; c++)
+            {
+                var any = false;
+                foreach (var row in rows)
+                {
+                    if (Cell(row, c).Length > 0)
+                    {
+                        any = true;
+                        break;
+                    }
+                }
+                if (!any)
+                {
+                    continue;
+                }
+
+                var item = new SettingsColumn { Index = c, Letter = ColumnLetter(c) };
+
+                item.HeaderInfo = new TextBlock
+                {
+                    FontSize = 11,
+                    Foreground = Brushes.Gray,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                };
+                item.Samples = new TextBlock
+                {
+                    TextWrapping = TextWrapping.Wrap,
+                    Foreground = Brushes.DimGray,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(6, 0, 6, 0)
+                };
+                item.NameBox = new TextBox { Margin = new Thickness(2), Padding = new Thickness(2) };
+                item.RoleBox = new ComboBox { Margin = new Thickness(2) };
+                foreach (var roleName in roleNames)
+                {
+                    item.RoleBox.Items.Add(roleName);
+                }
+
+                item.NameBox.TextChanged += delegate
+                {
+                    if (!updating)
+                    {
+                        item.NameEdited = true;
+                    }
+                };
+
+                item.RoleBox.SelectionChanged += delegate
+                {
+                    if (updating)
+                    {
+                        return;
+                    }
+
+                    item.RoleEdited = true;
+
+                    var selected = item.RoleBox.SelectedItem as string;
+                    if (selected == RoleOther && item.NameBox.Text.Trim().Length == 0)
+                    {
+                        updating = true;
+                        item.NameBox.Text = "Sütun " + item.Letter;
+                        updating = false;
+                    }
+                };
+
+                var rowGrid = newRowGrid();
+
+                var letterPanel = new StackPanel { Margin = new Thickness(6, 3, 4, 3) };
+                letterPanel.Children.Add(new TextBlock { Text = "Sütun " + item.Letter, FontWeight = FontWeights.Bold });
+                letterPanel.Children.Add(item.HeaderInfo);
+                Grid.SetColumn(letterPanel, 0);
+                rowGrid.Children.Add(letterPanel);
+
+                Grid.SetColumn(item.Samples, 1);
+                rowGrid.Children.Add(item.Samples);
+                Grid.SetColumn(item.NameBox, 2);
+                rowGrid.Children.Add(item.NameBox);
+                Grid.SetColumn(item.RoleBox, 3);
+                rowGrid.Children.Add(item.RoleBox);
+
+                var separator = new Border
+                {
+                    BorderBrush = Brushes.LightGray,
+                    BorderThickness = new Thickness(0, 0, 0, 1),
+                    Child = rowGrid
+                };
+                columnsPanel.Children.Add(separator);
+                columnItems.Add(item);
+            }
+
+            // ---------- Olaylar ----------
+            headerBox.TextChanged += delegate
+            {
+                if (updating)
+                {
+                    return;
+                }
+
+                if (!startEdited)
+                {
+                    updating = true;
+                    startBox.Text = nextRowAfterHeader().ToString();
+                    updating = false;
+                }
+
+                refreshPreview();
+                applyDefaults();
+            };
+
+            noHeaderCheck.Click += delegate
+            {
+                headerBox.IsEnabled = noHeaderCheck.IsChecked != true;
+
+                if (!startEdited)
+                {
+                    updating = true;
+                    startBox.Text = nextRowAfterHeader().ToString();
+                    updating = false;
+                }
+
+                refreshPreview();
+                applyDefaults();
+            };
+
+            startBox.TextChanged += delegate
+            {
+                if (updating)
+                {
+                    return;
+                }
+
+                startEdited = true;
+                refreshPreview();
+                applyDefaults();
+            };
+
+            endBox.TextChanged += delegate
+            {
+                if (updating)
+                {
+                    return;
+                }
+
+                refreshPreview();
+                applyDefaults();
+            };
+
+            helpButton.Click += delegate
+            {
+                ShowColumnHelp(window);
+            };
+
+            bulkButton.Click += delegate
+            {
+                foreach (var col in columnItems)
+                {
+                    if (col.HasData && (col.RoleBox.SelectedItem as string) == RoleSkip)
+                    {
+                        col.RoleEdited = true;
+                        updating = true;
+                        col.RoleBox.SelectedItem = RoleOther;
+                        if (col.NameBox.Text.Trim().Length == 0)
+                        {
+                            col.NameBox.Text = "Sütun " + col.Letter;
+                        }
+                        updating = false;
+                    }
+                }
+            };
+
+            // ---------- Devam: kontrol et ve sonucu hazırla ----------
+            List<string[]> normalizedResult = null;
+            var chosenCins = -1;
+            var chosenSerial = -1;
+            var chosenSystem = -1;
+
+            Action<string> warn = text =>
+                MessageBox.Show(window, text, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+
+            okButton.Click += delegate
+            {
+                var headerNumber = headerRowNumber();
+                if (headerNumber < 0)
+                {
+                    warn("Başlıkların yazdığı satırın numarasına bir sayı yaz.\n" +
+                         "Dosyada başlık yoksa \"Başlık yok\" kutusunu işaretle.");
+                    return;
+                }
+
+                var start = startRowNumber();
+                if (start < 1)
+                {
+                    warn("Ürünlerin başladığı satırın numarasına bir sayı yaz.");
+                    return;
+                }
+
+                var end = endRowNumber();
+                if (end < start)
+                {
+                    warn("\"Şu satıra kadar\" kutusu ya boş olmalı ya da başlangıç satırından küçük olmamalı.");
+                    return;
+                }
+
+                var dataRows = new List<string[]>();
+                for (var i = 0; i < rows.Count; i++)
+                {
+                    if (isDataRow(numbers[i]))
+                    {
+                        dataRows.Add(rows[i]);
+                    }
+                }
+
+                if (dataRows.Count == 0)
+                {
+                    warn("Belirttiğin satırlarda ürün bulunamadı.\n" +
+                         "Ürünlerin başladığı satır numarasını kontrol et.");
+                    return;
+                }
+
+                var roles = new string[width];
+                var names = new string[width];
+                for (var c2 = 0; c2 < width; c2++)
+                {
+                    roles[c2] = RoleSkip;
+                    names[c2] = "";
+                }
+                foreach (var col in columnItems)
+                {
+                    roles[col.Index] = (col.RoleBox.SelectedItem as string) ?? RoleSkip;
+                    names[col.Index] = col.NameBox.Text.Trim();
+                }
+
+                foreach (var single in new[] { RoleCins, RoleSerial, RoleQuantity, RoleSystem })
+                {
+                    var howMany = 0;
+                    foreach (var roleOfColumn in roles)
+                    {
+                        if (roleOfColumn == single)
+                        {
+                            howMany++;
+                        }
+                    }
+
+                    if (howMany > 1)
+                    {
+                        warn("Birden fazla sütunu \"" + ShortRole(single) + "\" olarak seçtin.\n" +
+                             "Bu seçenek sadece bir sütun için kullanılabilir.");
+                        return;
+                    }
+                }
+
+                if (Array.IndexOf(roles, RoleCins) < 0)
+                {
+                    var answer = MessageBox.Show(window,
+                        "Grup sütunu seçmedin.\nTüm ürünler \"" + UnknownTypeName + "\" grubuna eklenecek.\n\nDevam edilsin mi?",
+                        "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (answer != MessageBoxResult.Yes)
+                    {
+                        return;
+                    }
+                }
+
+                var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                for (var c2 = 0; c2 < width; c2++)
+                {
+                    if (roles[c2] != RoleOther)
+                    {
+                        continue;
+                    }
+
+                    if (names[c2].Length == 0)
+                    {
+                        warn("Sütun " + ColumnLetter(c2) + " için bir ad yaz (ya da \"Alma\" seç).");
+                        return;
+                    }
+
+                    if (string.Equals(names[c2], AdetHeader, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(names[c2], SiraNoHeader, StringComparison.OrdinalIgnoreCase))
+                    {
+                        warn("\"" + names[c2] + "\" adı özel bir addır (Sütun " + ColumnLetter(c2) + ").\n" +
+                             "Adet sütunuysa \"Bu sütunda ne yazıyor?\" kutusundan \"Adet\" seç, değilse başka bir ad ver.");
+                        return;
+                    }
+
+                    if (!usedNames.Add(names[c2]))
+                    {
+                        warn("\"" + names[c2] + "\" adı birden fazla sütunda kullanılmış.\n" +
+                             "Her sütunun adı farklı olmalı.");
+                        return;
+                    }
+                }
+
+                // Sütun sırası korunur; kullanılmayan sütunların adı boş bırakılır (yok sayılır).
+                var headerLine = new string[width];
+                for (var c2 = 0; c2 < width; c2++)
+                {
+                    if (roles[c2] == RoleCins)
+                    {
+                        headerLine[c2] = CinsHeader;
+                    }
+                    else if (roles[c2] == RoleSerial)
+                    {
+                        headerLine[c2] = names[c2].Length > 0 ? names[c2] : SeriNoHeader;
+                    }
+                    else if (roles[c2] == RoleQuantity)
+                    {
+                        headerLine[c2] = AdetHeader;
+                    }
+                    else if (roles[c2] == RoleSystem)
+                    {
+                        headerLine[c2] = SistemIsmiHeader;
+                    }
+                    else if (roles[c2] == RoleOther)
+                    {
+                        headerLine[c2] = names[c2];
+                    }
+                    else
+                    {
+                        headerLine[c2] = "";
+                    }
+                }
+
+                var table = new List<string[]> { headerLine };
+                foreach (var dataRow in dataRows)
+                {
+                    var line = new string[width];
+                    for (var c2 = 0; c2 < width; c2++)
+                    {
+                        line[c2] = c2 < dataRow.Length ? dataRow[c2] : "";
+                    }
+                    table.Add(line);
+                }
+
+                normalizedResult = table;
+                chosenCins = Array.IndexOf(roles, RoleCins);
+                chosenSerial = Array.IndexOf(roles, RoleSerial);
+                chosenSystem = Array.IndexOf(roles, RoleSystem);
+
+                window.DialogResult = true;
+            };
+
+            // ---------- Yerleştir ----------
+            root.Children.Add(step1);
+            root.Children.Add(buttons);
+            root.Children.Add(legend);
+            root.Children.Add(previewScroll);
+            root.Children.Add(settingsPanel);
+            root.Children.Add(step2);
+            root.Children.Add(columnsTitle);
+            root.Children.Add(columnsScroll);
+            window.Content = root;
+
+            refreshPreview();
+            applyDefaults();
+
+            if (window.ShowDialog() != true || normalizedResult == null)
+            {
+                return null;
+            }
+
+            cinsColumn = chosenCins;
+            serialColumn = chosenSerial;
+            systemColumn = chosenSystem;
+            return normalizedResult;
+        }
+
+        // =====================================================================
+        // ÖN BİLGİ EKRANI (dosya ve sayfa seçildikten sonra, ayar penceresinden önce)
+        // =====================================================================
+        //
+        // Ne yapılacağını ve ne olacağını her maddenin altında kendi örneğiyle kısaca anlatır.
+        // "Anladım, devam et" derse ayar penceresine geçilir; "İptal" derse içe aktarma durur.
+
+        private bool ShowImportInfo(string title, bool forScrap)
+        {
+            var window = new Window
+            {
+                Title = title + " — Başlamadan Önce",
+                Width = 700,
+                Height = 760,
+                MinWidth = 560,
+                MinHeight = 420,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                Owner = this,
+                ShowInTaskbar = false,
+                Background = Brushes.White,
+                FontSize = 13
+            };
+
+            var headerRowBrush = new SolidColorBrush(Color.FromRgb(0xCF, 0xE8, 0xFF));
+            var dataRowBrush = new SolidColorBrush(Color.FromRgb(0xDF, 0xF5, 0xDF));
+
+            var panel = new StackPanel { Margin = new Thickness(18, 14, 18, 8) };
+
+            // ---------- Ne yapacaksın? ----------
+            panel.Children.Add(MakeInfoHeading("Ne yapacaksın?"));
+
+            // 1) Satırları belirle
+            panel.Children.Add(MakeBlinkLine("1) Satırları belirle:",
+                "Excel'de üstte İL, CİNS, SERİ NO gibi başlıkların yazdığı satırın numarasını ve " +
+                "ürünlerin başladığı satırın numarasını yaz."));
+
+            var rowsTable = MakeMiniTable(
+                new[]
+                {
+                    new[] { "Satır", "A", "B", "C", "D" },
+                    new[] { "1", "İL", "CİNS", "SERİ NO", "MARKA" },
+                    new[] { "2", "ÇORUM", "YAZICI", "4E89BKBQ900007N", "SAMSUNG" },
+                    new[] { "3", "ÇORUM", "TABLET", "T9A3HD00XQ", "CETRİX" }
+                },
+                new Brush[] { Brushes.WhiteSmoke, headerRowBrush, dataRowBrush, dataRowBrush },
+                true);
+
+            var tags = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0) };
+            tags.Inlines.Add(new System.Windows.Documents.Run(" Mavi ") { Background = headerRowBrush, FontWeight = FontWeights.SemiBold });
+            tags.Inlines.Add(new System.Windows.Documents.Run(" 1. satır başlıklar (İL, CİNS...) → "));
+            tags.Inlines.Add(new System.Windows.Documents.Run("1") { FontWeight = FontWeights.Bold });
+            tags.Inlines.Add(new System.Windows.Documents.Run(" yaz.     "));
+            tags.Inlines.Add(new System.Windows.Documents.Run(" Yeşil ") { Background = dataRowBrush, FontWeight = FontWeights.SemiBold });
+            tags.Inlines.Add(new System.Windows.Documents.Run(" ürünler 2. satırdan başlıyor → "));
+            tags.Inlines.Add(new System.Windows.Documents.Run("2") { FontWeight = FontWeights.Bold });
+            tags.Inlines.Add(new System.Windows.Documents.Run(" yaz."));
+
+            panel.Children.Add(MakeExampleBox(rowsTable, tags));
+
+            // 2) Sütunları tanıt
+            panel.Children.Add(MakeBlinkLine("2) Sütunları tanıt:",
+                "Her sütunun ne olduğunu seç. Kullanmayacaklarına \"Alma\" de."));
+
+            var rolesTable = MakeMiniTable(
+                new[]
+                {
+                    new[] { "Sütunda yazan", "", "Ne seçilir?" },
+                    new[] { "ÇORUM", "→", "Alma (aktarma)" },
+                    new[] { "YAZICI", "→", "Grup (ürünün türü)" },
+                    new[] { "4E89BKBQ900007N", "→", "Seri No" },
+                    new[] { "SAMSUNG", "→", "Diğer özellik (adı: Marka)" }
+                },
+                new Brush[] { Brushes.WhiteSmoke, null, null, null, null },
+                false);
+            panel.Children.Add(MakeExampleBox(rolesTable));
+
+            // 3) Devam'a bas
+            var step3 = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6, 10, 0, 2) };
+            step3.Inlines.Add(new System.Windows.Documents.Run("3) Devam'a bas:") { FontWeight = FontWeights.Bold });
+            step3.Inlines.Add(new System.Windows.Documents.Run(" Program önce bir özet gösterir."));
+            panel.Children.Add(step3);
+
+            var summaryText = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                FontStyle = FontStyles.Italic,
+                Text = (forScrap ? "2 satır HURDAYA eklenecek" : "2 ürün depoya eklenecek") +
+                       ": YAZICI 1, TABLET 1. Devam edilsin mi?"
+            };
+
+            var fakeButtons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) };
+            fakeButtons.Children.Add(MakeFakeButton("Evet"));
+            fakeButtons.Children.Add(MakeFakeButton("Hayır"));
+
+            var noChange = new TextBlock
+            {
+                Text = "\"Hayır\" dersen hiçbir şey eklenmez.",
+                Foreground = Brushes.DimGray,
+                FontSize = 12,
+                Margin = new Thickness(0, 4, 0, 0)
+            };
+            panel.Children.Add(MakeExampleBox(summaryText, fakeButtons, noChange));
+
+            // ---------- Ne olacak? ----------
+            panel.Children.Add(MakeInfoHeading("Ne olacak?"));
+
+            if (forScrap)
+            {
+                panel.Children.Add(MakeInfoText("• Ürünler HURDAYA eklenir. Gerçek depoya hiçbir şey eklenmez ve değişmez."));
+                panel.Children.Add(MakeExampleBox(MakeInfoText("YAZICI hurda listesinde görünür, depodaki ürünler olduğu gibi kalır.")));
+            }
+            else
+            {
+                panel.Children.Add(MakeInfoText("• Ürünler depoya eklenir."));
+                panel.Children.Add(MakeExampleBox(MakeInfoText("YAZICI, \"Yazıcı\" grubuna depoya eklenir.")));
+            }
+
+            panel.Children.Add(MakeInfoText("• Aynı seri no'lu satırların hepsi eklenir."));
+            panel.Children.Add(MakeExampleBox(MakeInfoText("4 satırda \"FFF\" yazıyorsa dördü de eklenir, özette bilgi verilir.")));
+
+            panel.Children.Add(MakeInfoText("• Excel dosyan değişmez, sadece okunur."));
+            panel.Children.Add(MakeExampleBox(MakeInfoText("İçe aktardıktan sonra dosyayı olduğu gibi saklayabilirsin.")));
+
+            var safeText = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            safeText.Inlines.Add(new System.Windows.Documents.Run("İstediğin an "));
+            safeText.Inlines.Add(new System.Windows.Documents.Run("İptal") { FontWeight = FontWeights.Bold });
+            safeText.Inlines.Add(new System.Windows.Documents.Run("'e basabilirsin, hiçbir şey değişmez."));
+            panel.Children.Add(new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0xB2, 0xEB, 0xF2)),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 14, 0, 6),
+                Child = safeText
+            });
+
+            // ---------- Butonlar ----------
+            var okButton = new Button
+            {
+                Content = "Anladım, devam et",
+                Width = 150,
+                Padding = new Thickness(0, 6, 0, 6),
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true,
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.White,
+                Background = new SolidColorBrush(Color.FromRgb(0x1A, 0x6F, 0xD4))
+            };
+            okButton.Click += delegate { window.DialogResult = true; };
+
+            var cancelButton = new Button { Content = "İptal", Width = 90, Padding = new Thickness(0, 6, 0, 6), IsCancel = true };
+
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 8, 18, 12)
+            };
+            buttons.Children.Add(okButton);
+            buttons.Children.Add(cancelButton);
+            DockPanel.SetDock(buttons, Dock.Bottom);
+
+            var scroll = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                Content = panel
+            };
+
+            var root = new DockPanel();
+            root.Children.Add(buttons);
+            root.Children.Add(scroll);
+            window.Content = root;
+
+            return window.ShowDialog() == true;
+        }
+
+        private static TextBlock MakeInfoHeading(string text)
+        {
+            return new TextBlock
+            {
+                Text = text,
+                FontWeight = FontWeights.Bold,
+                FontSize = 15,
+                Margin = new Thickness(0, 12, 0, 4)
+            };
+        }
+
+        private static TextBlock MakeInfoText(string text)
+        {
+            return new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(6, 8, 0, 0) };
+        }
+
+        /// <summary>Örnekleri gösteren, solunda mavi çizgisi olan açık mavi kutu.</summary>
+        private static UIElement MakeExampleBox(params UIElement[] content)
+        {
+            var inner = new StackPanel();
+            inner.Children.Add(new TextBlock
+            {
+                Text = "Örnek:",
+                FontWeight = FontWeights.SemiBold,
+                Foreground = Brushes.DimGray,
+                Margin = new Thickness(0, 0, 0, 4)
+            });
+            foreach (var element in content)
+            {
+                inner.Children.Add(element);
+            }
+
+            return new Border
+            {
+                Background = new SolidColorBrush(Color.FromRgb(0xE6, 0xF6, 0xF9)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x1A, 0x6F, 0xD4)),
+                BorderThickness = new Thickness(3, 0, 0, 0),
+                Padding = new Thickness(10, 6, 10, 6),
+                Margin = new Thickness(6, 4, 0, 2),
+                Child = inner
+            };
+        }
+
+        /// <summary>Küçük örnek tablosu. Her satırın zemin rengi verilir (null = renksiz).</summary>
+        private static UIElement MakeMiniTable(string[][] cells, Brush[] rowBrushes, bool boldFirstColumn)
+        {
+            var grid = new Grid { HorizontalAlignment = HorizontalAlignment.Left };
+
+            var columnCount = 0;
+            foreach (var line in cells)
+            {
+                if (line.Length > columnCount)
+                {
+                    columnCount = line.Length;
+                }
+            }
+            for (var c = 0; c < columnCount; c++)
+            {
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            }
+
+            for (var r = 0; r < cells.Length; r++)
+            {
+                grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+                for (var c = 0; c < cells[r].Length; c++)
+                {
+                    var cell = MakePreviewCell(cells[r][c], r == 0 || (boldFirstColumn && c == 0));
+                    if (r < rowBrushes.Length && rowBrushes[r] != null)
+                    {
+                        cell.Background = rowBrushes[r];
+                    }
+                    Grid.SetRow(cell, r);
+                    Grid.SetColumn(cell, c);
+                    grid.Children.Add(cell);
+                }
+            }
+
+            return grid;
+        }
+
+        private static UIElement MakeFakeButton(string text)
+        {
+            return new Border
+            {
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Background = Brushes.WhiteSmoke,
+                Padding = new Thickness(14, 1, 14, 1),
+                Margin = new Thickness(0, 0, 6, 0),
+                Child = new TextBlock { Text = text, FontSize = 12 }
+            };
+        }
+
+        /// <summary>Başlığı yumuşakça turuncuya dönüp sönen (dikkat çeken) kısa adım cümlesi.</summary>
+        private static UIElement MakeBlinkLine(string title, string text)
+        {
+            var backColor = Color.FromRgb(0xFF, 0xE0, 0xB2);   // zemin (açık turuncu)
+            var textColor = Color.FromRgb(0xD8, 0x43, 0x15);   // yazı (koyu turuncu)
+
+            var back = new SolidColorBrush(Color.FromArgb(0, backColor.R, backColor.G, backColor.B));
+            var fore = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+
+            var line = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = fore,
+                Padding = new Thickness(6, 3, 6, 3)
+            };
+            line.Inlines.Add(new System.Windows.Documents.Run(title) { FontWeight = FontWeights.Bold });
+            line.Inlines.Add(new System.Windows.Documents.Run(" " + text));
+
+            var backAnimation = new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromArgb(0, backColor.R, backColor.G, backColor.B),
+                To = backColor,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            };
+            back.BeginAnimation(SolidColorBrush.ColorProperty, backAnimation);
+
+            var foreAnimation = new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromRgb(0x1C, 0x1C, 0x1C),
+                To = textColor,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            };
+            fore.BeginAnimation(SolidColorBrush.ColorProperty, foreAnimation);
+
+            return new Border
+            {
+                Background = back,
+                CornerRadius = new CornerRadius(5),
+                Child = line,
+                Margin = new Thickness(0, 10, 0, 2),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+        }
+
+        /// <summary>"Hangi sütuna ne seçmeliyim?" yardım penceresi.</summary>
+        private void ShowColumnHelp(Window owner)
+        {
+            var help = new Window
+            {
+                Title = "Hangi sütuna ne seçmeliyim?",
+                Width = 640,
+                Height = 560,
+                Owner = owner,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ShowInTaskbar = false,
+                Background = Brushes.White,
+                FontSize = 13
+            };
+
+            var items = new List<KeyValuePair<string, string>>
+            {
+                new KeyValuePair<string, string>("Grup",
+                    "Ürünün ne olduğunu söyleyen sütun. Örnek: KİŞİSEL BİLGİSAYAR, FOTOKOPİ MAKİNASI, YAZICI. " +
+                    "Program ürünleri bu sütuna göre gruplar. Böyle bir sütun yoksa hiçbirini seçme, " +
+                    "ürünler \"" + UnknownTypeName + "\" grubuna eklenir."),
+                new KeyValuePair<string, string>("Seri No",
+                    "Her ürüne özel numara. Örnek: CZC7338W2N, 4E89BKBQ900007N. Başlık olarak genelde Seri No, " +
+                    "Seri Numarası ya da S/N yazar. Aynı seri no birden fazla satırda olsa da hepsi eklenir."),
+                new KeyValuePair<string, string>("Sistem Adı (ETMYS Adı)",
+                    "Ürünün sistemdeki kayıtlı adı. Örnek: LENOVO BİLGİSAYAR, SAMSUNG ML-3471 ND."),
+                new KeyValuePair<string, string>("Adet",
+                    "Aynı üründen kaç tane olduğunu gösteren sayı. Bu sütun yoksa her satır 1 adet sayılır."),
+                new KeyValuePair<string, string>("Diğer özellik",
+                    "Marka, model, işlemci, RAM gibi başka bilgiler. \"Program bu bilgiye ne ad versin?\" " +
+                    "kutusuna o bilginin adını yaz (örnek: Marka)."),
+                new KeyValuePair<string, string>("Alma",
+                    "İl, birim, not gibi aktarmak istemediğin sütunlar.")
+            };
+
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            foreach (var pair in items)
+            {
+                panel.Children.Add(new TextBlock
+                {
+                    Text = pair.Key,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 14,
+                    Margin = new Thickness(0, 10, 0, 2)
+                });
+                panel.Children.Add(new TextBlock { Text = pair.Value, TextWrapping = TextWrapping.Wrap });
+            }
+
+            var closeButton = new Button
+            {
+                Content = "Tamam",
+                Width = 90,
+                Padding = new Thickness(0, 5, 0, 5),
+                Margin = new Thickness(0, 8, 14, 12),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                IsDefault = true,
+                IsCancel = true
+            };
+            closeButton.Click += delegate { help.Close(); };
+            DockPanel.SetDock(closeButton, Dock.Bottom);
+
+            var scroll = new ScrollViewer { Content = panel, VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+
+            var dock = new DockPanel();
+            dock.Children.Add(closeButton);
+            dock.Children.Add(scroll);
+            help.Content = dock;
+            help.ShowDialog();
+        }
+
+        /// <summary>
+        /// Çizgili açıklama kutusu: adım cümlesi bir renge, örnek satırı başka bir renge yumuşakça dönüp söner.
+        /// Renkleri değiştirmek için aşağıdaki dört satır yeterlidir.
+        /// </summary>
+        private static UIElement MakeStepBanner(string title, string text, string example)
+        {
+            var stepBackColor = Color.FromRgb(0xFF, 0xE0, 0xB2);   // adım cümlesinin zemini (açık turuncu)
+            var stepTextColor = Color.FromRgb(0xD8, 0x43, 0x15);   // adım cümlesinin yazısı (koyu turuncu)
+            var stepLineColor = Color.FromRgb(0xE6, 0x51, 0x00);   // kutunun sol çizgisi (turuncu)
+            var exampleBackColor = Color.FromRgb(0xB2, 0xEB, 0xF2); // örnek satırının zemini (açık mavi)
+
+            var back = new SolidColorBrush(Color.FromArgb(0, stepBackColor.R, stepBackColor.G, stepBackColor.B));
+            var fore = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+
+            var line = new TextBlock
+            {
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = fore,
+                Padding = new Thickness(6, 3, 6, 3)
+            };
+            line.Inlines.Add(new System.Windows.Documents.Run(title) { FontWeight = FontWeights.Bold });
+            line.Inlines.Add(new System.Windows.Documents.Run(" " + text));
+
+            var pulse = new Border
+            {
+                Background = back,
+                CornerRadius = new CornerRadius(5),
+                Child = line,
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+
+            var backAnimation = new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromArgb(0, stepBackColor.R, stepBackColor.G, stepBackColor.B),
+                To = stepBackColor,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            };
+            back.BeginAnimation(SolidColorBrush.ColorProperty, backAnimation);
+
+            var foreAnimation = new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromRgb(0x1C, 0x1C, 0x1C),
+                To = stepTextColor,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            };
+            fore.BeginAnimation(SolidColorBrush.ColorProperty, foreAnimation);
+
+            // Örnek satırı da yumuşakça yanıp sönen bir zemin üzerinde durur.
+            var exampleBack = new SolidColorBrush(Color.FromArgb(0, exampleBackColor.R, exampleBackColor.G, exampleBackColor.B));
+            var exampleBorder = new Border
+            {
+                Background = exampleBack,
+                CornerRadius = new CornerRadius(5),
+                Margin = new Thickness(0, 3, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Child = new TextBlock
+                {
+                    Text = example,
+                    Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
+                    FontSize = 12,
+                    TextWrapping = TextWrapping.Wrap,
+                    Padding = new Thickness(6, 3, 6, 3)
+                }
+            };
+
+            var exampleAnimation = new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromArgb(0, exampleBackColor.R, exampleBackColor.G, exampleBackColor.B),
+                To = exampleBackColor,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            };
+            exampleBack.BeginAnimation(SolidColorBrush.ColorProperty, exampleAnimation);
+
+            var panel = new StackPanel();
+            panel.Children.Add(pulse);
+            panel.Children.Add(exampleBorder);
+
+            return new Border
+            {
+                BorderBrush = new SolidColorBrush(stepLineColor),
+                BorderThickness = new Thickness(4, 0, 0, 0),
+                Background = new SolidColorBrush(Color.FromRgb(0xF3, 0xF3, 0xF3)),
+                Padding = new Thickness(8, 6, 8, 6),
+                Margin = new Thickness(0, 0, 0, 8),
+                Child = panel
+            };
+        }
+
+        private static UIElement MakeLegendItem(Brush color, string text)
+        {
+            var panel = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 14, 0) };
+            panel.Children.Add(new Border
+            {
+                Width = 14,
+                Height = 14,
+                Background = color,
+                BorderBrush = Brushes.Gray,
+                BorderThickness = new Thickness(1),
+                Margin = new Thickness(0, 0, 5, 0)
+            });
+            panel.Children.Add(new TextBlock { Text = text, Foreground = Brushes.DimGray, VerticalAlignment = VerticalAlignment.Center });
+            return panel;
+        }
+
+        private static Border MakePreviewCell(string text, bool bold)
+        {
+            var block = new TextBlock
+            {
+                Text = text,
+                Padding = new Thickness(4, 2, 4, 2),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                FontWeight = bold ? FontWeights.Bold : FontWeights.Normal
+            };
+
+            if (text.Length > 0)
+            {
+                block.ToolTip = text;
+            }
+
+            return new Border
+            {
+                BorderBrush = Brushes.LightGray,
+                BorderThickness = new Thickness(0, 0, 1, 1),
+                Child = block
+            };
+        }
+
+        /// <summary>"Grup (ürünün türü)" -> "Grup": mesajlarda kısa ad göstermek için.</summary>
+        private static string ShortRole(string role)
+        {
+            var open = role.IndexOf(" (", StringComparison.Ordinal);
+            return open > 0 ? role.Substring(0, open) : role;
+        }
+
+        /// <summary>Sütun sırasını Excel harfine çevirir: 0 = A, 25 = Z, 26 = AA...</summary>
+        private static string ColumnLetter(int index)
+        {
+            var letters = "";
+            var n = index;
+            while (n >= 0)
+            {
+                letters = (char)('A' + (n % 26)) + letters;
+                n = n / 26 - 1;
+            }
+            return letters;
+        }
+
+        /// <summary>Sütun adına göre hazır seçili gelecek rol (kullanıcı değiştirebilir).</summary>
+        private static string DefaultRoleFor(string headerText)
+        {
+            if (headerText.Length == 0)
+            {
+                return RoleSkip;
+            }
+            if (string.Equals(headerText, CinsHeader, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(headerText, "Grup", StringComparison.OrdinalIgnoreCase))
+            {
+                return RoleCins;
+            }
+            if (string.Equals(headerText, SeriNoHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                return RoleSerial;
+            }
+            if (string.Equals(headerText, AdetHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                return RoleQuantity;
+            }
+            if (string.Equals(headerText, SistemIsmiHeader, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(headerText, "Sistem Adı", StringComparison.OrdinalIgnoreCase))
+            {
+                return RoleSystem;
+            }
+            if (string.Equals(headerText, SiraNoHeader, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(headerText, ScrapDateHeader, StringComparison.OrdinalIgnoreCase))
+            {
+                return RoleSkip;
+            }
+            return RoleOther;
+        }
+
+        /// <summary>Ürün satırlarındaki ilk 3 dolu değer (sütunun ne içerdiğini göstermek için).</summary>
+        private static string SampleText(List<string[]> rows, List<int> numbers, int column, Func<int, bool> isDataRow)
+        {
+            var samples = new List<string>();
+
+            for (var i = 0; i < rows.Count && samples.Count < 3; i++)
+            {
+                if (!isDataRow(numbers[i]))
+                {
+                    continue;
+                }
+
+                var value = Cell(rows[i], column);
+                if (value.Length == 0)
+                {
+                    continue;
+                }
+
+                if (value.Length > 24)
+                {
+                    value = value.Substring(0, 24) + "...";
+                }
+                samples.Add(value);
+            }
+
+            return samples.Count == 0 ? EmptySample : string.Join("   |   ", samples);
         }
     }
 }

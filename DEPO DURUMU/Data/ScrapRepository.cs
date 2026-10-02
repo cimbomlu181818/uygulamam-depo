@@ -459,16 +459,18 @@ namespace DEPO_DURUMU.Data
                                "Geri getirilemedi; önce o üründeki çakışmayı çözün.";
                     }
 
-                    if (conflictTargets.Count > 1)
-                    {
-                        return "\"" + conflictText + "\" birden fazla depo ürünüyle çakışıyor. " +
-                               "Geri getirilemedi; önce çakışmaları çözün.";
-                    }
-
                     conflictChoice = onConflict(conflictText);
                     if (conflictChoice == RestoreConflictChoice.Cancel)
                     {
                         return RestoreCancelled;
+                    }
+
+                    // Depoda aynı seri no'lu birden fazla ürün varsa (içe aktarmayla gelmiş olabilir),
+                    // hangisinin üzerine yazılacağı belli olmaz; sadece ayrı ürün olarak getirilebilir.
+                    if (conflictChoice == RestoreConflictChoice.Overwrite && conflictTargets.Count > 1)
+                    {
+                        return "\"" + conflictText + "\" depoda birden fazla üründe var, üzerine yazılamaz. " +
+                               "Geri getirirken \"ayrı ürün olarak getir\" seçeneğini kullan.";
                     }
                 }
 

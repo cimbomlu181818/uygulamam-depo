@@ -19,6 +19,11 @@
                 <MenuItem Header="Ürün Bilgileri" Click="PropertiesMenu_Click" />
                 <MenuItem Header="Log" Click="LogMenu_Click" />
                 <MenuItem Header="Tüm Grupları Dışa Aktar (CSV)..." Click="ExportAllTypesMenu_Click" />
+                <MenuItem Header="Excel'e Dışa Aktar">
+                    <MenuItem Header="Depo + Hurda (tek dosya, iki sayfa)..." Click="ExportBothExcelMenu_Click" />
+                    <MenuItem Header="Sadece Depo..." Click="ExportDepotExcelMenu_Click" />
+                    <MenuItem Header="Sadece Hurda..." Click="ExportScrapExcelMenu_Click" />
+                </MenuItem>
                 <MenuItem Header="Tüm Grupları İçe Aktar (CSV)..." Click="ImportAllTypesMenu_Click" />
                 <MenuItem Header="Hurdaya İçe Aktar (Excel/CSV)..." Click="ImportScrapMenu_Click" />
                 <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
