@@ -39,6 +39,7 @@ namespace DEPO_DURUMU
                 }
 
                 ResetDatabase();
+                ClearUndoHistory();
             }
             catch (Exception ex)
             {

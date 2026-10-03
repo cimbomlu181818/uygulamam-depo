@@ -37,6 +37,16 @@
                 <Separator />
                 <MenuItem Header="Tüm Verileri Sıfırla..." Foreground="#B00020" Click="ResetMenu_Click" />
             </MenuItem>
+            <MenuItem x:Name="UndoMenuItem"
+                      Header="Geri Al"
+                      ToolTip="Geri alınacak işlem yok"
+                      IsEnabled="False"
+                      Click="UndoMenu_Click" />
+            <MenuItem x:Name="RedoMenuItem"
+                      Header="İleri Al"
+                      ToolTip="İleri alınacak işlem yok"
+                      IsEnabled="False"
+                      Click="RedoMenu_Click" />
             <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
             <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />
             <MenuItem Header="Tutanaklar" Click="HandoversMenu_Click" />

@@ -63,6 +63,7 @@ namespace DEPO_DURUMU
             PreviewMouseLeftButtonDown += MainWindow_PreviewMouseLeftButtonDown;
             ProductGrid.PreviewMouseRightButtonDown += ProductGrid_PreviewMouseRightButtonDown;
             ProductGrid.PreviewKeyDown += ProductGrid_PreviewKeyDown;
+            PreviewKeyDown += MainWindow_PreviewKeyDown;
             ShowHome();
         }
 
@@ -738,6 +739,9 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            // Geri Al için silinmeden önce ürünlerin tam kopyası alınır.
+            var deletedSnapshots = CaptureSnapshots(_currentType.Id, toDelete);
+
             foreach (var productId in toDelete)
             {
                 var description = BuildProductDescription(
@@ -745,6 +749,14 @@ namespace DEPO_DURUMU
 
                 ProductRepository.Delete(productId);
                 LogRepository.Add(_currentType.Name, description, "Silindi");
+            }
+
+            if (deletedSnapshots.Count > 0)
+            {
+                PushUndo(BuildProductSetEntry(
+                    "Silme (" + deletedSnapshots.Count + " ürün)", _currentType.Id, _currentType.Name,
+                    deletedSnapshots, _currentProperties.Where(p => p.IsSerialNumber).Select(p => p.Id).ToList(),
+                    true));
             }
 
             LoadProductGrid(_currentType);
@@ -812,6 +824,7 @@ namespace DEPO_DURUMU
             var menu = BuildProductContextMenu(targets);
             AddColorMenu(menu, rowView, e.OriginalSource as DependencyObject);
             AddClipboardMenu(menu, rowView, targets, e.OriginalSource as DependencyObject);
+            AddHistoryMenu(menu);
             ProductGrid.ContextMenu = menu;
         }
 
@@ -898,56 +911,69 @@ namespace DEPO_DURUMU
         }
 
         /// <summary>
-        /// Menünün en üstüne hücre (Kopyala / Kes / Yapıştır) ve satır (Kopyala / Kes / Yapıştır)
-        /// seçeneklerini ekler.
+        /// Menünün en üstüne üç grup ekler: Kopyala, Kes, Yapıştır. Her grubun üzerine gelince
+        /// yanında "Hücre ..." ve "Satır ..." seçenekleri açılır.
         /// </summary>
         private void AddClipboardMenu(ContextMenu menu, DataRowView rowView, List<int> targets, DependencyObject source)
         {
             var productId = (int)rowView[IdColumnName];
             var suffix = targets.Count > 1 ? " (" + targets.Count + " satır)" : "";
-            var index = 0;
 
+            // Tıklanan yer bir özellik sütunu değilse (ör. Zimmet) hücre seçenekleri soluk kalır.
             var property = FindClickedProperty(source);
-            if (property != null)
-            {
-                var copyCell = new MenuItem { Header = "Hücreyi Kopyala", InputGestureText = "Ctrl+C" };
-                copyCell.Click += (s, e) => CopyCell(rowView, property, false);
-                menu.Items.Insert(index++, copyCell);
+            var hasCell = property != null;
 
-                var cutCell = new MenuItem { Header = "Hücreyi Kes", InputGestureText = "Ctrl+X" };
-                cutCell.Click += (s, e) => CopyCell(rowView, property, true);
-                menu.Items.Insert(index++, cutCell);
+            // KOPYALA
+            var copyCell = new MenuItem { Header = "Hücre Kopyala", InputGestureText = "Ctrl+C", IsEnabled = hasCell };
+            copyCell.Click += (s, e) => CopyCell(rowView, property, false);
 
-                var pasteCell = new MenuItem
-                {
-                    Header = "Hücreye Yapıştır",
-                    InputGestureText = "Ctrl+V",
-                    IsEnabled = ClipboardHasText()
-                };
-                pasteCell.Click += (s, e) => PasteCell(rowView, property);
-                menu.Items.Insert(index++, pasteCell);
-
-                menu.Items.Insert(index++, new Separator());
-            }
-
-            var copyRows = new MenuItem { Header = "Satırı Kopyala" + suffix };
+            var copyRows = new MenuItem { Header = "Satır Kopyala" + suffix };
             copyRows.Click += (s, e) => CopyRows(targets, false);
-            menu.Items.Insert(index++, copyRows);
 
-            var cutRows = new MenuItem { Header = "Satırı Kes" + suffix };
+            var copyMenu = new MenuItem { Header = "Kopyala" };
+            copyMenu.Items.Add(copyCell);
+            copyMenu.Items.Add(copyRows);
+
+            // KES
+            var cutCell = new MenuItem { Header = "Hücre Kes", InputGestureText = "Ctrl+X", IsEnabled = hasCell };
+            cutCell.Click += (s, e) => CopyCell(rowView, property, true);
+
+            var cutRows = new MenuItem { Header = "Satır Kes" + suffix };
             cutRows.Click += (s, e) => CopyRows(targets, true);
-            menu.Items.Insert(index++, cutRows);
+
+            var cutMenu = new MenuItem { Header = "Kes" };
+            cutMenu.Items.Add(cutCell);
+            cutMenu.Items.Add(cutRows);
+
+            // YAPIŞTIR
+            var pasteCell = new MenuItem
+            {
+                Header = "Hücre Yapıştır",
+                InputGestureText = "Ctrl+V",
+                IsEnabled = hasCell && ClipboardHasText()
+            };
+            pasteCell.Click += (s, e) => PasteCell(rowView, property);
 
             var waiting = _rowClipboardIds.Count;
             var pasteRows = new MenuItem
             {
-                Header = waiting > 1 ? "Satırı Yapıştır (" + waiting + " satır)" : "Satırı Yapıştır",
+                Header = waiting > 1 ? "Satır Yapıştır (" + waiting + " satır)" : "Satır Yapıştır",
                 IsEnabled = waiting > 0
             };
             pasteRows.Click += (s, e) => PasteRows(productId);
-            menu.Items.Insert(index++, pasteRows);
 
-            menu.Items.Insert(index, new Separator());
+            var pasteMenu = new MenuItem
+            {
+                Header = "Yapıştır",
+                IsEnabled = pasteCell.IsEnabled || pasteRows.IsEnabled
+            };
+            pasteMenu.Items.Add(pasteCell);
+            pasteMenu.Items.Add(pasteRows);
+
+            menu.Items.Insert(0, copyMenu);
+            menu.Items.Insert(1, cutMenu);
+            menu.Items.Insert(2, pasteMenu);
+            menu.Items.Insert(3, new Separator());
         }
 
         /// <summary>Ctrl+C / Ctrl+X / Ctrl+V: tıklanmış hücre bir özellik sütunundaysa hücre için çalışır.</summary>
@@ -1110,6 +1136,19 @@ namespace DEPO_DURUMU
             ProductRepository.SetValue(productId, property.Id, newValue);
             rowView[property.Name] = newValue;
 
+            PushUndo(BuildEditEntry(productId,
+                new List<ValueChange>
+                {
+                    new ValueChange
+                    {
+                        PropertyId = property.Id,
+                        Name = property.Name,
+                        IsSerial = property.IsSerialNumber,
+                        Old = oldValue,
+                        New = newValue
+                    }
+                }, 0, 0));
+
             var oldText = oldValue == "" ? "(boş)" : oldValue;
             var newText = newValue == "" ? "(boş)" : newValue;
             LogRepository.Add(_currentType.Name, property.Name + ": " + oldText + " -> " + newText, "Güncellendi");
@@ -1173,7 +1212,9 @@ namespace DEPO_DURUMU
 
             if (_rowClipboardIsCut)
             {
-                var moved = 0;
+                var orderBefore = existingIds;
+                var movedIds = new List<int>();
+                var movedIndexes = new List<int>();
 
                 foreach (var id in sources)
                 {
@@ -1182,14 +1223,16 @@ namespace DEPO_DURUMU
                         continue;
                     }
 
+                    movedIndexes.Add(orderBefore.IndexOf(id));
                     MoveAfter(id, typeId, after);
                     after = id;
-                    moved++;
+                    movedIds.Add(id);
                 }
 
-                if (moved > 0)
+                if (movedIds.Count > 0)
                 {
-                    LogRepository.Add(_currentType.Name, moved + " satır", "Taşındı");
+                    LogRepository.Add(_currentType.Name, movedIds.Count + " satır", "Taşındı");
+                    PushUndo(BuildMoveEntry(typeId, _currentType.Name, movedIds, movedIndexes, targetProductId));
                 }
 
                 _rowClipboardIds = new List<int>();
@@ -1198,6 +1241,8 @@ namespace DEPO_DURUMU
             {
                 var colors = ColorRepository.GetCellColors(typeId);
                 var serialIds = _currentProperties.Where(p => p.IsSerialNumber).Select(p => p.Id).ToList();
+
+                var newIds = new List<int>();
 
                 foreach (var sourceId in sources)
                 {
@@ -1233,9 +1278,18 @@ namespace DEPO_DURUMU
 
                     MoveAfter(newId, typeId, after);
                     after = newId;
+                    newIds.Add(newId);
 
                     LogRepository.Add(_currentType.Name,
                         BuildProductDescription(ProductRepository.GetValues(newId), quantity), "Eklendi");
+                }
+
+                var addedSnapshots = CaptureSnapshots(typeId, newIds);
+                if (addedSnapshots.Count > 0)
+                {
+                    PushUndo(BuildProductSetEntry(
+                        "Satır kopyalama (" + addedSnapshots.Count + " satır)", typeId, _currentType.Name,
+                        addedSnapshots, serialIds, false));
                 }
             }
 
@@ -1248,6 +1302,503 @@ namespace DEPO_DURUMU
             var ids = ProductRepository.GetForType(typeId).Select(p => p.Id).Where(id => id != productId).ToList();
             var index = ids.IndexOf(afterProductId);
             ProductRepository.SetPosition(productId, typeId, index < 0 ? ids.Count + 1 : index + 2);
+        }
+
+        // ---------- GERİ AL / İLERİ AL ----------
+
+        private const int UndoLimit = 20;
+
+        private sealed class UndoEntry
+        {
+            public string Title;
+            public int TypeId;
+            public string TypeName;
+
+            // Başarılıysa null, yapılamadıysa nedenini yazan metin döner.
+            public Func<string> Undo;
+            public Func<string> Redo;
+        }
+
+        private sealed class ValueChange
+        {
+            public int PropertyId;
+            public string Name;
+            public bool IsSerial;
+            public string Old;
+            public string New;
+        }
+
+        private readonly List<UndoEntry> _undoStack = new List<UndoEntry>();
+        private readonly List<UndoEntry> _redoStack = new List<UndoEntry>();
+
+        private void PushUndo(UndoEntry entry)
+        {
+            _undoStack.Add(entry);
+            if (_undoStack.Count > UndoLimit)
+            {
+                _undoStack.RemoveAt(0);
+            }
+
+            _redoStack.Clear();
+            UpdateUndoMenu();
+        }
+
+        /// <summary>Yedekten geri yükleme ve sıfırlama gibi her şeyi değiştiren işlemlerden sonra çağrılır.</summary>
+        private void ClearUndoHistory()
+        {
+            _undoStack.Clear();
+            _redoStack.Clear();
+            UpdateUndoMenu();
+        }
+
+        private void UpdateUndoMenu()
+        {
+            UndoMenuItem.IsEnabled = _undoStack.Count > 0;
+            UndoMenuItem.ToolTip = _undoStack.Count > 0
+                ? "Geri Al: " + _undoStack[_undoStack.Count - 1].Title + " (Ctrl+Z)"
+                : "Geri alınacak işlem yok";
+
+            RedoMenuItem.IsEnabled = _redoStack.Count > 0;
+            RedoMenuItem.ToolTip = _redoStack.Count > 0
+                ? "İleri Al: " + _redoStack[_redoStack.Count - 1].Title + " (Ctrl+Y)"
+                : "İleri alınacak işlem yok";
+        }
+
+        private void UndoMenu_Click(object sender, RoutedEventArgs e)
+        {
+            DoUndo();
+        }
+
+        private void RedoMenu_Click(object sender, RoutedEventArgs e)
+        {
+            DoRedo();
+        }
+
+        private void DoUndo()
+        {
+            if (_undoStack.Count == 0)
+            {
+                return;
+            }
+
+            var entry = _undoStack[_undoStack.Count - 1];
+            _undoStack.RemoveAt(_undoStack.Count - 1);
+
+            if (RunHistoryStep(entry, entry.Undo, "Geri alındı", "geri alınamadı"))
+            {
+                _redoStack.Add(entry);
+            }
+
+            UpdateUndoMenu();
+        }
+
+        private void DoRedo()
+        {
+            if (_redoStack.Count == 0)
+            {
+                return;
+            }
+
+            var entry = _redoStack[_redoStack.Count - 1];
+            _redoStack.RemoveAt(_redoStack.Count - 1);
+
+            if (RunHistoryStep(entry, entry.Redo, "İleri alındı", "ileri alınamadı"))
+            {
+                _undoStack.Add(entry);
+            }
+
+            UpdateUndoMenu();
+        }
+
+        private bool RunHistoryStep(UndoEntry entry, Func<string> action, string logType, string failText)
+        {
+            string problem;
+
+            try
+            {
+                problem = action();
+            }
+            catch (Exception)
+            {
+                problem = "Ürün ya da bilgiler arada değişmiş.";
+            }
+
+            if (problem != null)
+            {
+                MessageBox.Show(problem + "\n\n\"" + entry.Title + "\" işlemi " + failText + " ve listeden çıkarıldı.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                RefreshAfterHistory(entry);
+                return false;
+            }
+
+            LogRepository.Add(entry.TypeName, entry.Title, logType);
+            RefreshAfterHistory(entry);
+            return true;
+        }
+
+        /// <summary>Geri/ileri alınan işlemin olduğu ürün grubunu açıp tabloyu yeniler.</summary>
+        private void RefreshAfterHistory(UndoEntry entry)
+        {
+            if (TypePage.Visibility == Visibility.Visible && _currentType != null)
+            {
+                if (entry.TypeId != 0 && entry.TypeId != _currentType.Id)
+                {
+                    var type = ProductTypeRepository.GetById(entry.TypeId);
+                    if (type != null)
+                    {
+                        ShowTypePage(type);
+                        return;
+                    }
+                }
+
+                LoadProductGrid(_currentType);
+            }
+            else
+            {
+                LoadHomeStatistics();
+                LoadRecentLog();
+            }
+        }
+
+        /// <summary>Ctrl+Z geri al, Ctrl+Y (ya da Ctrl+Shift+Z) ileri al. Yazı kutularında kendi geri almaları çalışır.</summary>
+        private void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if ((Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            {
+                return;
+            }
+
+            if (Keyboard.FocusedElement is TextBox)
+            {
+                return;
+            }
+
+            var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+
+            if (e.Key == Key.Z && !shift)
+            {
+                DoUndo();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.Y || (e.Key == Key.Z && shift))
+            {
+                DoRedo();
+                e.Handled = true;
+            }
+        }
+
+        /// <summary>Sağ tık menüsünün en üstüne Geri Al / İleri Al ekler.</summary>
+        private void AddHistoryMenu(ContextMenu menu)
+        {
+            var hasUndo = _undoStack.Count > 0;
+            var undo = new MenuItem
+            {
+                Header = hasUndo ? "Geri Al: " + _undoStack[_undoStack.Count - 1].Title : "Geri Al",
+                InputGestureText = "Ctrl+Z",
+                IsEnabled = hasUndo
+            };
+            undo.Click += (s, e) => DoUndo();
+
+            var hasRedo = _redoStack.Count > 0;
+            var redo = new MenuItem
+            {
+                Header = hasRedo ? "İleri Al: " + _redoStack[_redoStack.Count - 1].Title : "İleri Al",
+                InputGestureText = "Ctrl+Y",
+                IsEnabled = hasRedo
+            };
+            redo.Click += (s, e) => DoRedo();
+
+            menu.Items.Insert(0, undo);
+            menu.Items.Insert(1, redo);
+            menu.Items.Insert(2, new Separator());
+        }
+
+        // --- Hücre / ürün düzenleme ---
+
+        private UndoEntry BuildEditEntry(int productId, List<ValueChange> changes, int oldQuantity, int newQuantity)
+        {
+            var title = changes.Count == 1 && oldQuantity == 0
+                ? "Hücre değişikliği (" + changes[0].Name + ")"
+                : "Ürün düzenleme";
+
+            return new UndoEntry
+            {
+                Title = title,
+                TypeId = _currentType.Id,
+                TypeName = _currentType.Name,
+                Undo = () => ApplyEdit(productId, changes, oldQuantity, false),
+                Redo = () => ApplyEdit(productId, changes, newQuantity, true)
+            };
+        }
+
+        /// <summary>Değişiklikleri eski ya da yeni haline getirir. targetQuantity 0 ise adede dokunulmaz.</summary>
+        private static string ApplyEdit(int productId, List<ValueChange> changes, int targetQuantity, bool useNew)
+        {
+            var currentQuantity = ProductRepository.GetQuantity(productId);
+            if (currentQuantity == 0)
+            {
+                return "Bu ürün artık yok.";
+            }
+
+            var current = ProductRepository.GetValues(productId);
+
+            foreach (var change in changes)
+            {
+                var target = useNew ? change.New : change.Old;
+
+                string now;
+                current.TryGetValue(change.PropertyId, out now);
+                now = now ?? "";
+
+                if (change.IsSerial && target != "" && target != now)
+                {
+                    if (ProductRepository.IsValueUsedByAnotherProduct(change.PropertyId, target, productId))
+                    {
+                        return "\"" + target + "\" değeri şu an başka bir üründe kullanılıyor.";
+                    }
+
+                    if (ScrapRepository.IsSerialNumberUsed(target))
+                    {
+                        return "\"" + target + "\" değeri şu an hurdadaki bir üründe kullanılıyor.";
+                    }
+                }
+            }
+
+            if (targetQuantity > 0 && targetQuantity != currentQuantity
+                && targetQuantity < AssignmentRepository.GetActiveQuantity(productId))
+            {
+                return "Bu üründen zimmette adet olduğu için adet bu kadar düşürülemez.";
+            }
+
+            foreach (var change in changes)
+            {
+                ProductRepository.SetValue(productId, change.PropertyId, useNew ? change.New : change.Old);
+            }
+
+            if (targetQuantity > 0 && targetQuantity != currentQuantity)
+            {
+                ProductRepository.SetQuantity(productId, targetQuantity);
+            }
+
+            return null;
+        }
+
+        // --- Renk ---
+
+        private UndoEntry BuildColorEntry(int productId, int propertyId, string propertyName, string oldKey, string newKey)
+        {
+            return new UndoEntry
+            {
+                Title = "Renk (" + propertyName + ")",
+                TypeId = _currentType.Id,
+                TypeName = _currentType.Name,
+                Undo = () => ApplyColor(productId, propertyId, oldKey),
+                Redo = () => ApplyColor(productId, propertyId, newKey)
+            };
+        }
+
+        private static string ApplyColor(int productId, int propertyId, string colorKey)
+        {
+            if (ProductRepository.GetQuantity(productId) == 0)
+            {
+                return "Bu ürün artık yok.";
+            }
+
+            if (string.IsNullOrEmpty(colorKey))
+            {
+                ColorRepository.ClearCellColor(productId, propertyId);
+            }
+            else
+            {
+                ColorRepository.SetCellColor(productId, propertyId, colorKey);
+            }
+
+            return null;
+        }
+
+        // --- Ürün silme ve satır kopyalama (ürün ekleme/çıkarma) ---
+
+        /// <summary>Ürünlerin tam kopyasını alır (değerleri, renkleri, grup içindeki sıraları).</summary>
+        private static List<ProductSnapshot> CaptureSnapshots(int typeId, List<int> productIds)
+        {
+            var order = ProductRepository.GetForType(typeId).Select(p => p.Id).ToList();
+            var colors = ColorRepository.GetCellColors(typeId);
+            var result = new List<ProductSnapshot>();
+
+            foreach (var id in productIds)
+            {
+                var snapshot = ProductRepository.GetSnapshot(id);
+                if (snapshot == null)
+                {
+                    continue;
+                }
+
+                snapshot.Rank = order.IndexOf(id) + 1;
+
+                Dictionary<int, string> productColors;
+                if (colors.TryGetValue(id, out productColors))
+                {
+                    snapshot.Colors = new Dictionary<int, string>(productColors);
+                }
+
+                result.Add(snapshot);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Ürünlerin eklenmesi ya da silinmesi için geri alma kaydı.
+        /// removed = true: işlem ürünleri sildi (geri alınca geri gelirler).
+        /// removed = false: işlem ürünleri ekledi (geri alınca silinirler).
+        /// </summary>
+        private UndoEntry BuildProductSetEntry(string title, int typeId, string typeName,
+            List<ProductSnapshot> snapshots, List<int> serialPropertyIds, bool removed)
+        {
+            Func<string> restore = () => RestoreSnapshots(typeId, snapshots, serialPropertyIds);
+            Func<string> remove = () => RemoveSnapshots(snapshots);
+
+            return new UndoEntry
+            {
+                Title = title,
+                TypeId = typeId,
+                TypeName = typeName,
+                Undo = removed ? restore : remove,
+                Redo = removed ? remove : restore
+            };
+        }
+
+        /// <summary>Ürünleri aynı Id, değer, renk ve sıralarıyla geri getirir.</summary>
+        private static string RestoreSnapshots(int typeId, List<ProductSnapshot> snapshots, List<int> serialPropertyIds)
+        {
+            if (ProductTypeRepository.GetById(typeId) == null)
+            {
+                return "Ürün grubu artık yok.";
+            }
+
+            foreach (var snapshot in snapshots)
+            {
+                if (ProductRepository.GetQuantity(snapshot.Id) > 0)
+                {
+                    return "Ürün zaten yerinde duruyor.";
+                }
+
+                foreach (var serialId in serialPropertyIds)
+                {
+                    string value;
+                    if (!snapshot.Values.TryGetValue(serialId, out value) || string.IsNullOrEmpty(value))
+                    {
+                        continue;
+                    }
+
+                    if (ProductRepository.IsValueUsedByAnotherProduct(serialId, value, snapshot.Id))
+                    {
+                        return "\"" + value + "\" seri numarası şu an başka bir üründe kullanılıyor.";
+                    }
+
+                    if (ScrapRepository.IsSerialNumberUsed(value))
+                    {
+                        return "\"" + value + "\" seri numarası şu an hurdadaki bir üründe kullanılıyor.";
+                    }
+                }
+            }
+
+            // Eski sıralarına, küçük sıradan büyüğe doğru yerleştirilir.
+            foreach (var snapshot in snapshots.OrderBy(x => x.Rank).ToList())
+            {
+                ProductRepository.Restore(snapshot);
+
+                foreach (var pair in snapshot.Colors)
+                {
+                    ColorRepository.SetCellColor(snapshot.Id, pair.Key, pair.Value);
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>Ürünleri siler (zimmetteki ürün silinmez, hiçbirine dokunmadan uyarı döner).</summary>
+        private static string RemoveSnapshots(List<ProductSnapshot> snapshots)
+        {
+            foreach (var snapshot in snapshots)
+            {
+                if (ProductRepository.GetQuantity(snapshot.Id) == 0)
+                {
+                    return "Ürünlerden biri artık yok.";
+                }
+
+                if (AssignmentRepository.GetActiveQuantity(snapshot.Id) > 0)
+                {
+                    return "Ürünlerden biri şu an zimmette, silinemez.";
+                }
+            }
+
+            foreach (var snapshot in snapshots)
+            {
+                ProductRepository.Delete(snapshot.Id);
+            }
+
+            return null;
+        }
+
+        // --- Satır taşıma (kes + yapıştır) ---
+
+        private UndoEntry BuildMoveEntry(int typeId, string typeName, List<int> movedIds, List<int> originalIndexes, int targetProductId)
+        {
+            return new UndoEntry
+            {
+                Title = "Satır taşıma (" + movedIds.Count + " satır)",
+                TypeId = typeId,
+                TypeName = typeName,
+                Undo = () =>
+                {
+                    foreach (var id in movedIds)
+                    {
+                        if (ProductRepository.GetQuantity(id) == 0)
+                        {
+                            return "Taşınan ürünlerden biri artık yok.";
+                        }
+                    }
+
+                    // Taşınanlar eski sıralarına, küçük sıradan büyüğe doğru geri konur.
+                    var order = Enumerable.Range(0, movedIds.Count).OrderBy(i => originalIndexes[i]).ToList();
+                    foreach (var i in order)
+                    {
+                        ProductRepository.SetPosition(movedIds[i], typeId, originalIndexes[i] + 1);
+                    }
+
+                    return null;
+                },
+                Redo = () =>
+                {
+                    if (ProductRepository.GetQuantity(targetProductId) == 0)
+                    {
+                        return "Yapıştırılan yerdeki ürün artık yok.";
+                    }
+
+                    foreach (var id in movedIds)
+                    {
+                        if (ProductRepository.GetQuantity(id) == 0)
+                        {
+                            return "Taşınan ürünlerden biri artık yok.";
+                        }
+
+                        if (AssignmentRepository.GetActiveQuantity(id) > 0)
+                        {
+                            return "Taşınan ürünlerden biri şu an zimmette, kesilemez.";
+                        }
+                    }
+
+                    var after = targetProductId;
+                    foreach (var id in movedIds)
+                    {
+                        MoveAfter(id, typeId, after);
+                        after = id;
+                    }
+
+                    return null;
+                }
+            };
         }
 
         // ---------- HÜCRE RENKLERİ ----------
@@ -1321,8 +1872,14 @@ namespace DEPO_DURUMU
                 var clear = new MenuItem { Header = "Rengi kaldır" };
                 clear.Click += (s, e) =>
                 {
+                    var oldChoice = ColorRepository.Palette.FirstOrDefault(c => c.Hex == currentHex);
                     ColorRepository.ClearCellColor(productId, property.Id);
                     rowView[colorColumn] = "";
+
+                    if (oldChoice != null)
+                    {
+                        PushUndo(BuildColorEntry(productId, property.Id, property.Name, oldChoice.Key, null));
+                    }
                 };
                 colorMenu.Items.Add(clear);
             }
@@ -1350,8 +1907,17 @@ namespace DEPO_DURUMU
                 ColorRepository.SetMeaning(choice.Key, meaning);
             }
 
+            var previousHex = rowView[ColorColumnPrefix + property.Id] as string;
+            var previousChoice = ColorRepository.Palette.FirstOrDefault(c => c.Hex == previousHex);
+
             ColorRepository.SetCellColor(productId, property.Id, choice.Key);
             rowView[ColorColumnPrefix + property.Id] = choice.Hex;
+
+            if (previousChoice == null || previousChoice.Key != choice.Key)
+            {
+                PushUndo(BuildColorEntry(productId, property.Id, property.Name,
+                    previousChoice == null ? null : previousChoice.Key, choice.Key));
+            }
         }
 
         /// <summary>Hücrenin zemin ve yazı rengini gizli renk sütunundan okuyan stil.</summary>
@@ -1428,8 +1994,50 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            var oldValues = ProductRepository.GetValues(productId);
+            var oldQuantity = ProductRepository.GetQuantity(productId);
+
             var window = new ProductDetailWindow(_currentType, productId, true) { Owner = this };
             window.ShowDialog();
+
+            // Pencere kapanınca neyin değiştiğine bakıp geri alma listesine ekler.
+            var newValues = ProductRepository.GetValues(productId);
+            var newQuantity = ProductRepository.GetQuantity(productId);
+            var changes = new List<ValueChange>();
+
+            foreach (var property in _currentProperties)
+            {
+                if (PropertyDefinitionRepository.IsZimmet(property))
+                {
+                    continue;
+                }
+
+                string before;
+                string after;
+                oldValues.TryGetValue(property.Id, out before);
+                newValues.TryGetValue(property.Id, out after);
+                before = before ?? "";
+                after = after ?? "";
+
+                if (before != after)
+                {
+                    changes.Add(new ValueChange
+                    {
+                        PropertyId = property.Id,
+                        Name = property.Name,
+                        IsSerial = property.IsSerialNumber,
+                        Old = before,
+                        New = after
+                    });
+                }
+            }
+
+            var quantityChanged = oldQuantity != newQuantity && oldQuantity > 0 && newQuantity > 0;
+            if (changes.Count > 0 || quantityChanged)
+            {
+                PushUndo(BuildEditEntry(productId, changes,
+                    quantityChanged ? oldQuantity : 0, quantityChanged ? newQuantity : 0));
+            }
 
             LoadProductGrid(_currentType);
         }
@@ -2017,6 +2625,7 @@ namespace DEPO_DURUMU
             try
             {
                 BackupService.RestoreBackup(dialog.FileName);
+                ClearUndoHistory();
                 MessageBox.Show(
                     "Yedek geri yüklendi. Değişikliklerin görünmesi için programı şimdi kapatıp yeniden aç.",
                     "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);

@@ -13,6 +13,26 @@ namespace DEPO_DURUMU.Data
     }
 
     /// <summary>
+    /// Bir ürünün o anki tam kopyası (Geri Al için): ürün bilgisi, değerleri, renkleri ve sırası.
+    /// </summary>
+    public class ProductSnapshot
+    {
+        public int Id { get; set; }
+        public int ProductTypeId { get; set; }
+        public int Quantity { get; set; }
+        public string CreatedAt { get; set; }
+
+        /// <summary>Ürün grubundaki sırası (1'den başlar).</summary>
+        public int Rank { get; set; }
+
+        /// <summary>ÖzellikId -> değer.</summary>
+        public Dictionary<int, string> Values { get; set; } = new Dictionary<int, string>();
+
+        /// <summary>ÖzellikId -> renk kodu.</summary>
+        public Dictionary<int, string> Colors { get; set; } = new Dictionary<int, string>();
+    }
+
+    /// <summary>
     /// Ürünler (Products) ve ürünlerin özellik değerleri (ProductValues)
     /// için veritabanı işlemleri.
     /// </summary>
@@ -273,6 +293,72 @@ namespace DEPO_DURUMU.Data
                 var result = command.ExecuteScalar();
                 return result == null || result == System.DBNull.Value ? (int?)null : System.Convert.ToInt32(result);
             }
+        }
+
+        /// <summary>
+        /// Ürünün bilgisini ve değerlerini kopyalar (Rank ve Colors çağıran tarafından doldurulur).
+        /// Ürün yoksa null döner.
+        /// </summary>
+        public static ProductSnapshot GetSnapshot(int productId)
+        {
+            ProductSnapshot snapshot = null;
+
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "SELECT ProductTypeId, Quantity, CreatedAt FROM Products WHERE Id = @id;";
+                command.Parameters.Add(new SQLiteParameter("@id", productId));
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (reader.Read())
+                    {
+                        snapshot = new ProductSnapshot
+                        {
+                            Id = productId,
+                            ProductTypeId = reader.GetInt32(0),
+                            Quantity = reader.GetInt32(1),
+                            CreatedAt = reader.GetString(2)
+                        };
+                    }
+                }
+            }
+
+            if (snapshot != null)
+            {
+                snapshot.Values = GetValues(productId);
+            }
+
+            return snapshot;
+        }
+
+        /// <summary>
+        /// Silinmiş bir ürünü AYNI Id ile geri getirir (değerleri ve sırasıyla). Renkler çağıran tarafından yazılır.
+        /// </summary>
+        public static void Restore(ProductSnapshot snapshot)
+        {
+            using (var connection = Database.OpenConnection())
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText =
+                    "INSERT INTO Products (Id, ProductTypeId, SortOrder, Quantity, CreatedAt) " +
+                    "VALUES (@id, @typeId, " +
+                    "(SELECT COALESCE(MAX(SortOrder), 0) + 1 FROM Products WHERE ProductTypeId = @typeId), " +
+                    "@quantity, @createdAt);";
+                command.Parameters.Add(new SQLiteParameter("@id", snapshot.Id));
+                command.Parameters.Add(new SQLiteParameter("@typeId", snapshot.ProductTypeId));
+                command.Parameters.Add(new SQLiteParameter("@quantity", snapshot.Quantity < 1 ? 1 : snapshot.Quantity));
+                command.Parameters.Add(new SQLiteParameter("@createdAt", snapshot.CreatedAt));
+                command.ExecuteNonQuery();
+            }
+
+            foreach (var pair in snapshot.Values)
+            {
+                SetValue(snapshot.Id, pair.Key, pair.Value);
+            }
+
+            SetPosition(snapshot.Id, snapshot.ProductTypeId, snapshot.Rank);
         }
 
         /// <summary>
