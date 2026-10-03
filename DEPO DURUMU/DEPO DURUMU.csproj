@@ -79,7 +79,11 @@
     <Compile Include="AssignmentEditWindow.xaml.cs">
       <DependentUpon>AssignmentEditWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="ColorSettingsWindow.xaml.cs">
+      <DependentUpon>ColorSettingsWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Data\BackupService.cs" />
+    <Compile Include="Data\ColorRepository.cs" />
     <Compile Include="Data\DynamicFieldFactory.cs" />
     <Compile Include="HandoverWindow.xaml.cs">
       <DependentUpon>HandoverWindow.xaml</DependentUpon>
@@ -135,6 +139,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="AssignmentEditWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="ColorSettingsWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

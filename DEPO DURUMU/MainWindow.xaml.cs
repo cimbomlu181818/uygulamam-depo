@@ -22,6 +22,12 @@ namespace DEPO_DURUMU
         private const string SelectedColumnName = "__Selected";
         private const string IdColumnName = "__ProductId";
         private const string QuantityColumnName = "__Quantity";
+        // Her özellik sütunu için gizli renk sütununun ön eki (ör. __Color_12).
+        private const string ColorColumnPrefix = "__Color_";
+
+        // Satır kes/kopyala panosu (uygulamanın kendi içinde tutulur).
+        private List<int> _rowClipboardIds = new List<int>();
+        private bool _rowClipboardIsCut;
 
         private ProductType _currentType;
 
@@ -56,6 +62,7 @@ namespace DEPO_DURUMU
             InitializeComponent();
             PreviewMouseLeftButtonDown += MainWindow_PreviewMouseLeftButtonDown;
             ProductGrid.PreviewMouseRightButtonDown += ProductGrid_PreviewMouseRightButtonDown;
+            ProductGrid.PreviewKeyDown += ProductGrid_PreviewKeyDown;
             ShowHome();
         }
 
@@ -179,6 +186,12 @@ namespace DEPO_DURUMU
         private void LogMenu_Click(object sender, RoutedEventArgs e)
         {
             var window = new LogWindow { Owner = this };
+            window.ShowDialog();
+        }
+
+        private void ColorSettingsMenu_Click(object sender, RoutedEventArgs e)
+        {
+            var window = new ColorSettingsWindow { Owner = this };
             window.ShowDialog();
         }
 
@@ -470,6 +483,7 @@ namespace DEPO_DURUMU
             foreach (var property in properties)
             {
                 table.Columns.Add(property.Name, typeof(string));
+                table.Columns.Add(ColorColumnPrefix + property.Id, typeof(string));
             }
 
             // Bu cinse ait gerçek ürünleri ve değerlerini tabloya satır olarak ekle.
@@ -480,6 +494,7 @@ namespace DEPO_DURUMU
             _currentProducts = products;
 
             var zimmetSummary = AssignmentRepository.GetActiveSummaryByProduct();
+            var cellColors = ColorRepository.GetCellColors(type.Id);
 
             var rowNumber = 0;
             foreach (var product in products)
@@ -505,6 +520,17 @@ namespace DEPO_DURUMU
                         row[property.Name] = values.ContainsKey(property.Id) ? values[property.Id] : "";
                     }
                 }
+                Dictionary<int, string> productColors;
+                cellColors.TryGetValue(product.Id, out productColors);
+                foreach (var property in properties)
+                {
+                    string colorKey = null;
+                    var choice = productColors != null && productColors.TryGetValue(property.Id, out colorKey)
+                        ? ColorRepository.FindChoice(colorKey)
+                        : null;
+                    row[ColorColumnPrefix + property.Id] = choice == null ? "" : choice.Hex;
+                }
+
                 table.Rows.Add(row);
             }
 
@@ -560,7 +586,8 @@ namespace DEPO_DURUMU
                     Header = property.Name,
                     Binding = new Binding(property.Name),
                     Width = new DataGridLength(140),
-                    IsReadOnly = true
+                    IsReadOnly = true,
+                    CellStyle = BuildColoredCellStyle(property.Id)
                 });
             }
         }
@@ -782,7 +809,10 @@ namespace DEPO_DURUMU
                 ProductGrid.SelectedItem = rowView;
             }
 
-            ProductGrid.ContextMenu = BuildProductContextMenu(targets);
+            var menu = BuildProductContextMenu(targets);
+            AddColorMenu(menu, rowView, e.OriginalSource as DependencyObject);
+            AddClipboardMenu(menu, rowView, targets, e.OriginalSource as DependencyObject);
+            ProductGrid.ContextMenu = menu;
         }
 
         private ContextMenu BuildProductContextMenu(List<int> productIds)
@@ -814,6 +844,581 @@ namespace DEPO_DURUMU
             menu.Items.Add(delete);
 
             return menu;
+        }
+
+        // ---------- KES / KOPYALA / YAPIŞTIR ----------
+
+        /// <summary>Sütun başlığından özelliği bulur. Zimmet sütunu (otomatik hesaplanır) hariç tutulur.</summary>
+        private PropertyDefinition FindEditableProperty(string header)
+        {
+            var property = _currentProperties.FirstOrDefault(p => p.Name == header);
+            if (property == null || PropertyDefinitionRepository.IsZimmet(property))
+            {
+                return null;
+            }
+
+            return property;
+        }
+
+        /// <summary>Sağ tıklanan yerin hangi özellik sütununda olduğunu bulur (yoksa null).</summary>
+        private PropertyDefinition FindClickedProperty(DependencyObject source)
+        {
+            DataGridCell cell = null;
+            var element = source;
+
+            while (element != null)
+            {
+                cell = element as DataGridCell;
+                if (cell != null)
+                {
+                    break;
+                }
+
+                element = VisualTreeHelper.GetParent(element);
+            }
+
+            if (cell == null || cell.Column == null)
+            {
+                return null;
+            }
+
+            return FindEditableProperty(cell.Column.Header as string);
+        }
+
+        private static bool ClipboardHasText()
+        {
+            try
+            {
+                return Clipboard.ContainsText();
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Menünün en üstüne hücre (Kopyala / Kes / Yapıştır) ve satır (Kopyala / Kes / Yapıştır)
+        /// seçeneklerini ekler.
+        /// </summary>
+        private void AddClipboardMenu(ContextMenu menu, DataRowView rowView, List<int> targets, DependencyObject source)
+        {
+            var productId = (int)rowView[IdColumnName];
+            var suffix = targets.Count > 1 ? " (" + targets.Count + " satır)" : "";
+            var index = 0;
+
+            var property = FindClickedProperty(source);
+            if (property != null)
+            {
+                var copyCell = new MenuItem { Header = "Hücreyi Kopyala", InputGestureText = "Ctrl+C" };
+                copyCell.Click += (s, e) => CopyCell(rowView, property, false);
+                menu.Items.Insert(index++, copyCell);
+
+                var cutCell = new MenuItem { Header = "Hücreyi Kes", InputGestureText = "Ctrl+X" };
+                cutCell.Click += (s, e) => CopyCell(rowView, property, true);
+                menu.Items.Insert(index++, cutCell);
+
+                var pasteCell = new MenuItem
+                {
+                    Header = "Hücreye Yapıştır",
+                    InputGestureText = "Ctrl+V",
+                    IsEnabled = ClipboardHasText()
+                };
+                pasteCell.Click += (s, e) => PasteCell(rowView, property);
+                menu.Items.Insert(index++, pasteCell);
+
+                menu.Items.Insert(index++, new Separator());
+            }
+
+            var copyRows = new MenuItem { Header = "Satırı Kopyala" + suffix };
+            copyRows.Click += (s, e) => CopyRows(targets, false);
+            menu.Items.Insert(index++, copyRows);
+
+            var cutRows = new MenuItem { Header = "Satırı Kes" + suffix };
+            cutRows.Click += (s, e) => CopyRows(targets, true);
+            menu.Items.Insert(index++, cutRows);
+
+            var waiting = _rowClipboardIds.Count;
+            var pasteRows = new MenuItem
+            {
+                Header = waiting > 1 ? "Satırı Yapıştır (" + waiting + " satır)" : "Satırı Yapıştır",
+                IsEnabled = waiting > 0
+            };
+            pasteRows.Click += (s, e) => PasteRows(productId);
+            menu.Items.Insert(index++, pasteRows);
+
+            menu.Items.Insert(index, new Separator());
+        }
+
+        /// <summary>Ctrl+C / Ctrl+X / Ctrl+V: tıklanmış hücre bir özellik sütunundaysa hücre için çalışır.</summary>
+        private void ProductGrid_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (_currentType == null || (Keyboard.Modifiers & ModifierKeys.Control) != ModifierKeys.Control)
+            {
+                return;
+            }
+
+            if (e.Key != Key.C && e.Key != Key.X && e.Key != Key.V)
+            {
+                return;
+            }
+
+            var rowView = ProductGrid.CurrentCell.Item as DataRowView;
+            var column = ProductGrid.CurrentCell.Column;
+            if (rowView == null || column == null)
+            {
+                return;
+            }
+
+            // Özellik sütunu değilse (onay kutusu, Sıra No, Adet, Zimmet) normal davranış kalır.
+            var property = FindEditableProperty(column.Header as string);
+            if (property == null)
+            {
+                return;
+            }
+
+            e.Handled = true;
+
+            if (e.Key == Key.C)
+            {
+                CopyCell(rowView, property, false);
+            }
+            else if (e.Key == Key.X)
+            {
+                CopyCell(rowView, property, true);
+            }
+            else if (ClipboardHasText())
+            {
+                PasteCell(rowView, property);
+            }
+        }
+
+        /// <summary>Hücredeki yazıyı panoya alır. Kes ise hücreyi boşaltır.</summary>
+        private void CopyCell(DataRowView rowView, PropertyDefinition property, bool cut)
+        {
+            var oldValue = rowView[property.Name] as string ?? "";
+
+            try
+            {
+                Clipboard.SetText(oldValue);
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Panoya yazılamadı, tekrar dene.", "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (cut)
+            {
+                var emptyValue = property.DataType == DynamicFieldFactory.YesNoDataType ? "Hayır" : "";
+                WriteCellValue(rowView, property, emptyValue);
+            }
+        }
+
+        /// <summary>Panodaki yazıyı hücreye yazar (Seri No ve Evet/Hayır kuralları kontrol edilir).</summary>
+        private void PasteCell(DataRowView rowView, PropertyDefinition property)
+        {
+            string text;
+
+            try
+            {
+                if (!Clipboard.ContainsText())
+                {
+                    return;
+                }
+
+                text = Clipboard.GetText() ?? "";
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Panodan okunamadı, tekrar dene.", "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Excel'den kopyalanan tek hücrenin sonunda satır sonu olur, temizlenir.
+            text = text.Trim();
+
+            if (text.Contains("\n") || text.Contains("\t"))
+            {
+                MessageBox.Show("Birden fazla hücre kopyalanmış. Bir hücreye sadece tek hücre yapıştırılabilir.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            if (property.DataType == DynamicFieldFactory.YesNoDataType)
+            {
+                if (string.Equals(text, "Evet", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    text = "Evet";
+                }
+                else if (string.Equals(text, "Hayır", StringComparison.CurrentCultureIgnoreCase)
+                    || string.Equals(text, "Hayir", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    text = "Hayır";
+                }
+                else
+                {
+                    MessageBox.Show("Bu sütuna sadece \"Evet\" veya \"Hayır\" yapıştırılabilir.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            var productId = (int)rowView[IdColumnName];
+            var oldValue = rowView[property.Name] as string ?? "";
+
+            if (text == oldValue)
+            {
+                return;
+            }
+
+            if (property.IsSerialNumber && text != "")
+            {
+                if (ProductRepository.IsValueUsedByAnotherProduct(property.Id, text, productId))
+                {
+                    MessageBox.Show(
+                        "\"" + property.Name + "\" için \"" + text + "\" değeri zaten başka bir üründe kullanılıyor.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (ScrapRepository.IsSerialNumberUsed(text))
+                {
+                    MessageBox.Show(
+                        "\"" + property.Name + "\" için \"" + text + "\" değeri hurdadaki bir üründe kullanılıyor.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+
+            WriteCellValue(rowView, property, text);
+        }
+
+        /// <summary>Hücre değerini veritabanına ve tabloya yazar, Log'a "Güncellendi" ekler.</summary>
+        private void WriteCellValue(DataRowView rowView, PropertyDefinition property, string newValue)
+        {
+            var productId = (int)rowView[IdColumnName];
+            var oldValue = rowView[property.Name] as string ?? "";
+
+            if (oldValue == newValue)
+            {
+                return;
+            }
+
+            ProductRepository.SetValue(productId, property.Id, newValue);
+            rowView[property.Name] = newValue;
+
+            var oldText = oldValue == "" ? "(boş)" : oldValue;
+            var newText = newValue == "" ? "(boş)" : newValue;
+            LogRepository.Add(_currentType.Name, property.Name + ": " + oldText + " -> " + newText, "Güncellendi");
+        }
+
+        /// <summary>
+        /// Satırları panoya alır. Kes ise zimmetteki ürünler atlanır (zimmetteki ürün kesilemez,
+        /// sadece kopyalanabilir).
+        /// </summary>
+        private void CopyRows(List<int> productIds, bool cut)
+        {
+            var ids = productIds.ToList();
+
+            if (cut)
+            {
+                var assigned = ids.Where(id => AssignmentRepository.GetActiveQuantity(id) > 0).ToList();
+                if (assigned.Count > 0)
+                {
+                    MessageBox.Show(
+                        assigned.Count == 1
+                            ? "Bu ürün zimmette olduğu için kesilemez. İstersen kopyalayabilirsin."
+                            : assigned.Count + " ürün zimmette olduğu için kesilemez, atlanacak.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                    ids = ids.Where(id => !assigned.Contains(id)).ToList();
+                    if (ids.Count == 0)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            _rowClipboardIds = ids;
+            _rowClipboardIsCut = cut;
+        }
+
+        /// <summary>
+        /// Panodaki satırları, sağ tıklanan satırın hemen altına yapıştırır.
+        /// Kesilmişse aynı ürünler taşınır; kopyalanmışsa yeni ürün olarak eklenir (Seri No boş kalır).
+        /// </summary>
+        private void PasteRows(int targetProductId)
+        {
+            if (_currentType == null || _rowClipboardIds.Count == 0)
+            {
+                return;
+            }
+
+            var typeId = _currentType.Id;
+            var existingIds = ProductRepository.GetForType(typeId).Select(p => p.Id).ToList();
+            var sources = _rowClipboardIds.Where(id => existingIds.Contains(id)).ToList();
+
+            if (sources.Count == 0)
+            {
+                MessageBox.Show(
+                    "Kopyalanan satır bu ürün grubunda değil. Şimdilik satırlar sadece aynı grubun içinde yapıştırılabilir.",
+                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var after = targetProductId;
+
+            if (_rowClipboardIsCut)
+            {
+                var moved = 0;
+
+                foreach (var id in sources)
+                {
+                    if (id == targetProductId || AssignmentRepository.GetActiveQuantity(id) > 0)
+                    {
+                        continue;
+                    }
+
+                    MoveAfter(id, typeId, after);
+                    after = id;
+                    moved++;
+                }
+
+                if (moved > 0)
+                {
+                    LogRepository.Add(_currentType.Name, moved + " satır", "Taşındı");
+                }
+
+                _rowClipboardIds = new List<int>();
+            }
+            else
+            {
+                var colors = ColorRepository.GetCellColors(typeId);
+                var serialIds = _currentProperties.Where(p => p.IsSerialNumber).Select(p => p.Id).ToList();
+
+                foreach (var sourceId in sources)
+                {
+                    var quantity = System.Math.Max(1, ProductRepository.GetQuantity(sourceId));
+                    var newId = ProductRepository.Add(typeId, quantity);
+                    var values = ProductRepository.GetValues(sourceId);
+
+                    foreach (var property in _currentProperties)
+                    {
+                        if (PropertyDefinitionRepository.IsZimmet(property) || property.IsSerialNumber)
+                        {
+                            continue;
+                        }
+
+                        string value;
+                        if (values.TryGetValue(property.Id, out value))
+                        {
+                            ProductRepository.SetValue(newId, property.Id, value);
+                        }
+                    }
+
+                    Dictionary<int, string> sourceColors;
+                    if (colors.TryGetValue(sourceId, out sourceColors))
+                    {
+                        foreach (var pair in sourceColors)
+                        {
+                            if (!serialIds.Contains(pair.Key))
+                            {
+                                ColorRepository.SetCellColor(newId, pair.Key, pair.Value);
+                            }
+                        }
+                    }
+
+                    MoveAfter(newId, typeId, after);
+                    after = newId;
+
+                    LogRepository.Add(_currentType.Name,
+                        BuildProductDescription(ProductRepository.GetValues(newId), quantity), "Eklendi");
+                }
+            }
+
+            LoadProductGrid(_currentType);
+        }
+
+        /// <summary>Ürünü, aynı gruptaki başka bir ürünün hemen altına yerleştirir.</summary>
+        private static void MoveAfter(int productId, int typeId, int afterProductId)
+        {
+            var ids = ProductRepository.GetForType(typeId).Select(p => p.Id).Where(id => id != productId).ToList();
+            var index = ids.IndexOf(afterProductId);
+            ProductRepository.SetPosition(productId, typeId, index < 0 ? ids.Count + 1 : index + 2);
+        }
+
+        // ---------- HÜCRE RENKLERİ ----------
+
+        /// <summary>
+        /// Sağ tıklanan hücre bir özellik sütunundaysa menüye "Renk" alt menüsü ekler
+        /// (12 renk + varsa "Rengi kaldır"). Renk sadece tıklanan hücreyi boyar.
+        /// </summary>
+        private void AddColorMenu(ContextMenu menu, DataRowView rowView, DependencyObject source)
+        {
+            DataGridCell cell = null;
+            var element = source;
+
+            while (element != null)
+            {
+                cell = element as DataGridCell;
+                if (cell != null)
+                {
+                    break;
+                }
+
+                element = VisualTreeHelper.GetParent(element);
+            }
+
+            if (cell == null || cell.Column == null)
+            {
+                return;
+            }
+
+            var header = cell.Column.Header as string;
+            var property = _currentProperties.FirstOrDefault(p => p.Name == header);
+            if (property == null || PropertyDefinitionRepository.IsZimmet(property))
+            {
+                return;
+            }
+
+            var productId = (int)rowView[IdColumnName];
+            var colorColumn = ColorColumnPrefix + property.Id;
+            var currentHex = rowView[colorColumn] as string;
+            var meanings = ColorRepository.GetAllMeanings();
+
+            var colorMenu = new MenuItem { Header = "Renk" };
+
+            foreach (var choice in ColorRepository.Palette)
+            {
+                var picked = choice;
+                string meaning;
+                meanings.TryGetValue(choice.Key, out meaning);
+
+                var item = new MenuItem
+                {
+                    Header = string.IsNullOrWhiteSpace(meaning) ? choice.Name : choice.Name + " - " + meaning,
+                    Icon = new Border
+                    {
+                        Width = 14,
+                        Height = 14,
+                        CornerRadius = new CornerRadius(2),
+                        Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(choice.Hex)),
+                        BorderBrush = Brushes.Gray,
+                        BorderThickness = new Thickness(1)
+                    }
+                };
+                item.Click += (s, e) => ApplyCellColor(productId, property, rowView, picked);
+                colorMenu.Items.Add(item);
+            }
+
+            if (!string.IsNullOrEmpty(currentHex))
+            {
+                colorMenu.Items.Add(new Separator());
+
+                var clear = new MenuItem { Header = "Rengi kaldır" };
+                clear.Click += (s, e) =>
+                {
+                    ColorRepository.ClearCellColor(productId, property.Id);
+                    rowView[colorColumn] = "";
+                };
+                colorMenu.Items.Add(clear);
+            }
+
+            // "Sil"in hemen üstündeki ayırıcıdan önce eklenir.
+            menu.Items.Insert(System.Math.Max(0, menu.Items.Count - 2), colorMenu);
+        }
+
+        /// <summary>
+        /// Hücreyi boyar. Bu renk ilk kez kullanılıyorsa önce ne demek olduğunu sorar;
+        /// kullanıcı iptal ederse hücre boyanmaz.
+        /// </summary>
+        private void ApplyCellColor(int productId, PropertyDefinition property, DataRowView rowView, ColorChoice choice)
+        {
+            if (ColorRepository.GetMeaning(choice.Key) == null)
+            {
+                var meaning = SimpleInputWindow.Ask(this, "Renk anlamı",
+                    choice.Name + " hücre ne demek? (örn: bozuk, kayıp)");
+
+                if (meaning == null)
+                {
+                    return;
+                }
+
+                ColorRepository.SetMeaning(choice.Key, meaning);
+            }
+
+            ColorRepository.SetCellColor(productId, property.Id, choice.Key);
+            rowView[ColorColumnPrefix + property.Id] = choice.Hex;
+        }
+
+        /// <summary>Hücrenin zemin ve yazı rengini gizli renk sütunundan okuyan stil.</summary>
+        private static Style BuildColoredCellStyle(int propertyId)
+        {
+            var colorColumn = ColorColumnPrefix + propertyId;
+            var style = new Style(typeof(DataGridCell));
+
+            var background = new MultiBinding { Converter = ColorCellConverter.ForBackground };
+            background.Bindings.Add(new Binding(colorColumn));
+            background.Bindings.Add(new Binding("IsSelected") { RelativeSource = RelativeSource.Self });
+            style.Setters.Add(new Setter(DataGridCell.BackgroundProperty, background));
+
+            var foreground = new MultiBinding { Converter = ColorCellConverter.ForForeground };
+            foreground.Bindings.Add(new Binding(colorColumn));
+            foreground.Bindings.Add(new Binding("IsSelected") { RelativeSource = RelativeSource.Self });
+            style.Setters.Add(new Setter(DataGridCell.ForegroundProperty, foreground));
+
+            return style;
+        }
+
+        /// <summary>
+        /// Renk kodunu (#RRGGBB) hücre zemin/yazı rengine çevirir. Hücre boyalı değilse
+        /// hiçbir şey değiştirmez (normal görünüm ve seçim rengi aynen kalır).
+        /// Seçili satırda renk biraz koyulaşır.
+        /// </summary>
+        private sealed class ColorCellConverter : IMultiValueConverter
+        {
+            public static readonly ColorCellConverter ForBackground = new ColorCellConverter(false);
+            public static readonly ColorCellConverter ForForeground = new ColorCellConverter(true);
+
+            private readonly bool _foreground;
+
+            private ColorCellConverter(bool foreground)
+            {
+                _foreground = foreground;
+            }
+
+            public object Convert(object[] values, Type targetType, object parameter, CultureInfo culture)
+            {
+                var hex = values != null && values.Length > 0 ? values[0] as string : null;
+                if (string.IsNullOrEmpty(hex))
+                {
+                    return DependencyProperty.UnsetValue;
+                }
+
+                var color = (Color)ColorConverter.ConvertFromString(hex);
+
+                var selected = values.Length > 1 && values[1] is bool && (bool)values[1];
+                if (selected)
+                {
+                    color = Color.FromRgb((byte)(color.R * 0.75), (byte)(color.G * 0.75), (byte)(color.B * 0.75));
+                }
+
+                if (_foreground)
+                {
+                    var brightness = 0.299 * color.R + 0.587 * color.G + 0.114 * color.B;
+                    return brightness < 140 ? Brushes.White : Brushes.Black;
+                }
+
+                return new SolidColorBrush(color);
+            }
+
+            public object[] ConvertBack(object value, Type[] targetTypes, object parameter, CultureInfo culture)
+            {
+                throw new NotSupportedException();
+            }
         }
 
         private void EditProduct(int productId)

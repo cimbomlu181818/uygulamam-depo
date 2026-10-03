@@ -341,6 +341,19 @@ CREATE TABLE IF NOT EXISTS ActionLogs (
     ActionType   TEXT    NOT NULL
 );
 
+-- Renk özelliği: renklerin anlamları ve hücre renkleri.
+CREATE TABLE IF NOT EXISTS ColorMeanings (
+    ColorKey  TEXT PRIMARY KEY,
+    Meaning   TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS CellColors (
+    ProductId   INTEGER NOT NULL REFERENCES Products(Id) ON DELETE CASCADE,
+    PropertyId  INTEGER NOT NULL REFERENCES PropertyDefinitions(Id) ON DELETE CASCADE,
+    ColorKey    TEXT    NOT NULL,
+    PRIMARY KEY (ProductId, PropertyId)
+);
+
 -- Hurda: gerçek depodan bağımsız, donmuş ürün kayıtları.
 -- TypeId/PropertyId burada BİLİNÇLİ olarak veritabanı ilişkisi (foreign key)
 -- OLARAK TANIMLANMADI: gerçek depoda o cins/özellik silinebilsin diye,
