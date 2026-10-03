@@ -2674,11 +2674,27 @@ namespace DEPO_DURUMU
             var line1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
             line1.Children.Add(MakeRedBlinkLabel("Başlıklar şu satırda:"));
             line1.Children.Add(headerBox);
+            line1.Children.Add(new TextBlock
+            {
+                Text = "(örnek: İL, CİNS, SERİ NO, MARKA vs.)",
+                Foreground = Brushes.DimGray,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
+            });
             line1.Children.Add(noHeaderCheck);
 
             var line2 = new StackPanel { Orientation = Orientation.Horizontal };
             line2.Children.Add(MakeRedBlinkLabel("Ürünler şu satırdan başlıyor:"));
             line2.Children.Add(startBox);
+            line2.Children.Add(new TextBlock
+            {
+                Text = "(örnek: TELSİZ, H4V9C2T7QZ, LENOVO vs.)",
+                Foreground = Brushes.DimGray,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 0, 0)
+            });
             var untilLabel = makeLabel("şu satıra kadar:");
             untilLabel.Margin = new Thickness(18, 0, 6, 0);
             line2.Children.Add(untilLabel);
@@ -2712,6 +2728,26 @@ namespace DEPO_DURUMU
                 "Aşağıdaki listede her sütunda ne yazdığını seç.",
                 "Örnek: altında LMXLKD9 gibi numaralar varsa \"Seri No\", KİŞİSEL BİLGİSAYAR gibi türler varsa \"Grup\" seç.");
             DockPanel.SetDock(step2, Dock.Top);
+
+            // ---------- Grup sütununun önemini anlatan uyarı ----------
+            var groupNoteText = new TextBlock { TextWrapping = TextWrapping.Wrap };
+            groupNoteText.Inlines.Add(new System.Windows.Documents.Run("ÖNEMLİ: ") { FontWeight = FontWeights.Bold });
+            groupNoteText.Inlines.Add(new System.Windows.Documents.Run("\"Grup (ürünün türü)\"") { FontWeight = FontWeights.Bold });
+            groupNoteText.Inlines.Add(new System.Windows.Documents.Run(
+                " sütunu çok önemlidir. Program ürünleri bu sütuna göre gruplar (telsiz, bilgisayar, yazıcı vs.). " +
+                "Ürünün türünün yazdığı sütunu mutlaka seç. Dosyada böyle bir sütun yoksa Devam'a basınca " +
+                "tüm ürünler için bir grup adı yazman istenecek."));
+            var groupNote = new Border
+            {
+                Child = groupNoteText,
+                Background = new SolidColorBrush(Color.FromRgb(0xFD, 0xEC, 0xEA)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(0x8B, 0x00, 0x00)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(5),
+                Padding = new Thickness(10, 6, 10, 6),
+                Margin = new Thickness(0, 4, 0, 4)
+            };
+            DockPanel.SetDock(groupNote, Dock.Top);
 
             // ---------- Sütun listesi ----------
             var columnsTitle = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
@@ -3121,14 +3157,14 @@ namespace DEPO_DURUMU
                     }
                 }
 
+                // Grup sütunu seçilmediyse tüm ürünler için tek bir grup adı yazılması istenir.
+                string typedGroupName = null;
                 if (Array.IndexOf(roles, RoleCins) < 0)
                 {
-                    var answer = MessageBox.Show(window,
-                        "Grup sütunu seçmedin.\nTüm ürünler \"" + UnknownTypeName + "\" grubuna eklenecek.\n\nDevam edilsin mi?",
-                        "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
-                    if (answer != MessageBoxResult.Yes)
+                    typedGroupName = AskGroupName(window);
+                    if (typedGroupName == null)
                     {
-                        return;
+                        return;   // "Geri git, grup sütunu belirle" seçildi: ayar penceresinde kalınır
                     }
                 }
 
@@ -3203,8 +3239,39 @@ namespace DEPO_DURUMU
                     table.Add(line);
                 }
 
+                // Grup adı elle yazıldıysa tabloya sona bir "Cins" sütunu eklenir ve ürünlerin hepsine yazılır.
+                // Seçilen sütunların hiçbirinde verisi olmayan satırlara yazılmaz (boş satır sayılır).
+                if (typedGroupName != null)
+                {
+                    for (var t = 0; t < table.Count; t++)
+                    {
+                        var extended = new string[width + 1];
+                        Array.Copy(table[t], extended, width);
+
+                        if (t == 0)
+                        {
+                            extended[width] = CinsHeader;
+                        }
+                        else
+                        {
+                            var rowHasValue = false;
+                            for (var c2 = 0; c2 < width; c2++)
+                            {
+                                if (roles[c2] != RoleSkip && (table[t][c2] ?? "").Trim().Length > 0)
+                                {
+                                    rowHasValue = true;
+                                    break;
+                                }
+                            }
+                            extended[width] = rowHasValue ? typedGroupName : "";
+                        }
+
+                        table[t] = extended;
+                    }
+                }
+
                 normalizedResult = table;
-                chosenCins = Array.IndexOf(roles, RoleCins);
+                chosenCins = typedGroupName != null ? width : Array.IndexOf(roles, RoleCins);
                 chosenSerial = Array.IndexOf(roles, RoleSerial);
                 chosenSystem = Array.IndexOf(roles, RoleSystem);
 
@@ -3218,6 +3285,7 @@ namespace DEPO_DURUMU
             root.Children.Add(previewScroll);
             root.Children.Add(settingsPanel);
             root.Children.Add(step2);
+            root.Children.Add(groupNote);
             root.Children.Add(columnsTitle);
             root.Children.Add(columnsScroll);
             window.Content = root;
@@ -3557,6 +3625,95 @@ namespace DEPO_DURUMU
             };
         }
 
+        /// <summary>
+        /// Grup sütunu seçilmediğinde tüm ürünler için tek bir grup adı ister.
+        /// "Geri git, grup sütunu belirle" seçilirse null döner (ayar penceresine dönülür).
+        /// </summary>
+        private static string AskGroupName(Window owner)
+        {
+            var dialog = new Window
+            {
+                Title = "Grup adı yaz",
+                Width = 460,
+                SizeToContent = SizeToContent.Height,
+                ResizeMode = ResizeMode.NoResize,
+                Owner = owner,
+                WindowStartupLocation = WindowStartupLocation.CenterOwner,
+                ShowInTaskbar = false,
+                Background = Brushes.White,
+                FontSize = 13
+            };
+
+            var panel = new StackPanel { Margin = new Thickness(16) };
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Grup (ürünün türü) sütununu seçmedin.",
+                FontWeight = FontWeights.Bold,
+                TextWrapping = TextWrapping.Wrap
+            });
+            panel.Children.Add(new TextBlock
+            {
+                Text = "Bu dosyadaki grup sütunu yoksa tüm ürünler için bir grup adı yaz.\nÖrnek: Telsiz, Bilgisayar, Yazıcı vs.",
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 8, 0, 8)
+            });
+
+            var input = new TextBox { Padding = new Thickness(4, 3, 4, 3) };
+            panel.Children.Add(input);
+
+            var buttons = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                Margin = new Thickness(0, 14, 0, 0)
+            };
+            var okButton = new Button
+            {
+                Content = "Tamam",
+                Width = 90,
+                Padding = new Thickness(0, 5, 0, 5),
+                Margin = new Thickness(0, 0, 8, 0),
+                IsDefault = true
+            };
+            var backButton = new Button
+            {
+                Content = "Geri git, grup sütunu belirle",
+                Padding = new Thickness(12, 5, 12, 5),
+                IsCancel = true
+            };
+            buttons.Children.Add(okButton);
+            buttons.Children.Add(backButton);
+            panel.Children.Add(buttons);
+
+            string result = null;
+
+            okButton.Click += delegate
+            {
+                var text = input.Text.Trim();
+                if (text.Length == 0)
+                {
+                    MessageBox.Show(dialog,
+                        "Bir grup adı yaz ya da geri gidip grup sütununu belirle.",
+                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                result = text;
+                dialog.DialogResult = true;
+            };
+
+            backButton.Click += delegate
+            {
+                dialog.DialogResult = false;
+            };
+
+            dialog.Content = panel;
+            dialog.Loaded += delegate { input.Focus(); };
+            dialog.ShowDialog();
+
+            return result;
+        }
+
         /// <summary>Zemini koyu kırmızıya dönüp sönen (yanıp sönen) kısa yazı. Yazı rengi kırmızı zeminde beyaza döner.</summary>
         private static UIElement MakeRedBlinkLabel(string text)
         {
@@ -3625,8 +3782,8 @@ namespace DEPO_DURUMU
             {
                 new KeyValuePair<string, string>("Grup",
                     "Ürünün ne olduğunu söyleyen sütun. Örnek: KİŞİSEL BİLGİSAYAR, FOTOKOPİ MAKİNASI, YAZICI. " +
-                    "Program ürünleri bu sütuna göre gruplar. Böyle bir sütun yoksa hiçbirini seçme, " +
-                    "ürünler \"" + UnknownTypeName + "\" grubuna eklenir."),
+                    "Program ürünleri bu sütuna göre gruplar, bu yüzden çok önemlidir. Böyle bir sütun yoksa hiçbirini seçme; " +
+                    "Devam'a basınca program tüm ürünler için bir grup adı yazmanı ister (örnek: Telsiz)."),
                 new KeyValuePair<string, string>("Seri No",
                     "Her ürüne özel numara. Örnek: CZC7338W2N, 4E89BKBQ900007N. Başlık olarak genelde Seri No, " +
                     "Seri Numarası ya da S/N yazar. Aynı seri no birden fazla satırda olsa da hepsi eklenir."),
