@@ -821,10 +821,14 @@ namespace DEPO_DURUMU
                 ProductGrid.SelectedItem = rowView;
             }
 
+            // Menü yukarıdan aşağıya bu sırayla kurulur:
+            // Düzenle, Zimmetle, Teslim-Tesellüm | Kopyala, Kes, Yapıştır, Renk | Geri Al, İleri Al | Sil
+            var source = e.OriginalSource as DependencyObject;
             var menu = BuildProductContextMenu(targets);
-            AddColorMenu(menu, rowView, e.OriginalSource as DependencyObject);
-            AddClipboardMenu(menu, rowView, targets, e.OriginalSource as DependencyObject);
+            AddClipboardMenu(menu, rowView, targets, source);
+            AddColorMenu(menu, rowView, source);
             AddHistoryMenu(menu);
+            AddDeleteMenu(menu, targets);
             ProductGrid.ContextMenu = menu;
         }
 
@@ -841,22 +845,30 @@ namespace DEPO_DURUMU
                 menu.Items.Add(edit);
             }
 
-            var handover = new MenuItem { Header = "Teslim-Tesellüm oluştur" + suffix };
-            handover.Click += (s, e) => CreateHandoverFor(productIds);
-            menu.Items.Add(handover);
-
             // Zimmetle, her ürün cinsinde ve hem tek hem çoklu seçimde görünür.
             var assign = new MenuItem { Header = "Zimmetle" + suffix };
             assign.Click += (s, e) => AssignProducts(productIds);
             menu.Items.Add(assign);
+
+            var handover = new MenuItem { Header = "Teslim-Tesellüm oluştur" + suffix };
+            handover.Click += (s, e) => CreateHandoverFor(productIds);
+            menu.Items.Add(handover);
+
+            menu.Items.Add(new Separator());
+
+            return menu;
+        }
+
+        /// <summary>Menünün en altına, ayırıcıdan sonra "Sil" ekler (tehlikeli işlem hep en sonda durur).</summary>
+        private void AddDeleteMenu(ContextMenu menu, List<int> productIds)
+        {
+            var suffix = productIds.Count > 1 ? " (" + productIds.Count + " ürün)" : "";
 
             menu.Items.Add(new Separator());
 
             var delete = new MenuItem { Header = "Sil" + suffix };
             delete.Click += (s, e) => DeleteProducts(productIds);
             menu.Items.Add(delete);
-
-            return menu;
         }
 
         // ---------- KES / KOPYALA / YAPIŞTIR ----------
@@ -970,10 +982,9 @@ namespace DEPO_DURUMU
             pasteMenu.Items.Add(pasteCell);
             pasteMenu.Items.Add(pasteRows);
 
-            menu.Items.Insert(0, copyMenu);
-            menu.Items.Insert(1, cutMenu);
-            menu.Items.Insert(2, pasteMenu);
-            menu.Items.Insert(3, new Separator());
+            menu.Items.Add(copyMenu);
+            menu.Items.Add(cutMenu);
+            menu.Items.Add(pasteMenu);
         }
 
         /// <summary>Ctrl+C / Ctrl+X / Ctrl+V: tıklanmış hücre bir özellik sütunundaysa hücre için çalışır.</summary>
@@ -1487,7 +1498,7 @@ namespace DEPO_DURUMU
             }
         }
 
-        /// <summary>Sağ tık menüsünün en üstüne Geri Al / İleri Al ekler.</summary>
+        /// <summary>Sağ tık menüsüne (ayırıcıdan sonra) Geri Al / İleri Al ekler.</summary>
         private void AddHistoryMenu(ContextMenu menu)
         {
             var hasUndo = _undoStack.Count > 0;
@@ -1508,9 +1519,9 @@ namespace DEPO_DURUMU
             };
             redo.Click += (s, e) => DoRedo();
 
-            menu.Items.Insert(0, undo);
-            menu.Items.Insert(1, redo);
-            menu.Items.Insert(2, new Separator());
+            menu.Items.Add(new Separator());
+            menu.Items.Add(undo);
+            menu.Items.Add(redo);
         }
 
         // --- Hücre / ürün düzenleme ---
@@ -1884,8 +1895,8 @@ namespace DEPO_DURUMU
                 colorMenu.Items.Add(clear);
             }
 
-            // "Sil"in hemen üstündeki ayırıcıdan önce eklenir.
-            menu.Items.Insert(System.Math.Max(0, menu.Items.Count - 2), colorMenu);
+            // Yapıştır'dan hemen sonra eklenir.
+            menu.Items.Add(colorMenu);
         }
 
         /// <summary>
