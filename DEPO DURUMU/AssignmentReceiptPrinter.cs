@@ -31,7 +31,7 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var window = new ReceiptPreviewWindow(owner, assignments, false);
+            var window = new ReceiptPreviewWindow(owner, assignments, false, null);
             window.ShowDialog();
         }
 
@@ -43,8 +43,25 @@ namespace DEPO_DURUMU
                 return;
             }
 
-            var window = new ReceiptPreviewWindow(owner, assignments, true);
+            var window = new ReceiptPreviewWindow(owner, assignments, true, null);
             window.ShowDialog();
+        }
+
+        /// <summary>
+        /// KAYDETMEDEN önce tutanağı gösterir. Pencerede "Kaydet", "Kaydet ve Yazdır" ve "Vazgeç" düğmeleri vardır;
+        /// kayıt ancak Kaydet'e basılınca yapılır (save geri çağrısı çalışır). Geri çağrı true dönerse pencere kapanır
+        /// ve bu metot true verir; Vazgeç'e ya da pencereyi kapatmaya basılırsa hiçbir şey kaydedilmez ve false döner.
+        /// Geri çağrı false dönerse (ör. hata oldu) pencere açık kalır.
+        /// </summary>
+        public static bool ShowSavePreview(Window owner, List<Assignment> assignments, bool isReturn, Func<Window, bool> save)
+        {
+            if (assignments == null || assignments.Count == 0)
+            {
+                return false;
+            }
+
+            var window = new ReceiptPreviewWindow(owner, assignments, isReturn, save);
+            return window.ShowDialog() == true;
         }
 
         // ---------- YAZDIRMA ----------
@@ -450,7 +467,7 @@ namespace DEPO_DURUMU
         /// <summary>Tutanağı ekranda gösteren, Yazdır ve Kapat düğmeli önizleme penceresi (kodla kurulur, XAML gerekmez).</summary>
         private sealed class ReceiptPreviewWindow : Window
         {
-            public ReceiptPreviewWindow(Window owner, List<Assignment> assignments, bool isReturn)
+            public ReceiptPreviewWindow(Window owner, List<Assignment> assignments, bool isReturn, Func<Window, bool> save)
             {
                 Title = isReturn ? "Zimmet İade Tutanağı" : "Zimmet Tutanağı";
                 Owner = owner;
@@ -481,15 +498,7 @@ namespace DEPO_DURUMU
                     Background = Brushes.White
                 };
 
-                var printButton = new Button
-                {
-                    Content = "Yazdır",
-                    Width = 100,
-                    Height = 30,
-                    Margin = new Thickness(0, 0, 8, 0),
-                    IsDefault = true
-                };
-                printButton.Click += (s, e) =>
+                Action printNow = () =>
                 {
                     if (isReturn)
                     {
@@ -501,25 +510,106 @@ namespace DEPO_DURUMU
                     }
                 };
 
-                var closeButton = new Button
-                {
-                    Content = "Kapat",
-                    Width = 100,
-                    Height = 30,
-                    IsCancel = true
-                };
-                closeButton.Click += (s, e) => Close();
-
                 var buttons = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
                     HorizontalAlignment = HorizontalAlignment.Right,
                     Margin = new Thickness(10)
                 };
-                buttons.Children.Add(printButton);
-                buttons.Children.Add(closeButton);
 
                 var root = new DockPanel();
+
+                if (save == null)
+                {
+                    // Sadece görüntüleme (Zimmetler defterinden): Yazdır ve Kapat.
+                    var printButton = new Button
+                    {
+                        Content = "Yazdır",
+                        Width = 100,
+                        Height = 30,
+                        Margin = new Thickness(0, 0, 8, 0),
+                        IsDefault = true
+                    };
+                    printButton.Click += (s, e) => printNow();
+
+                    var closeButton = new Button
+                    {
+                        Content = "Kapat",
+                        Width = 100,
+                        Height = 30,
+                        IsCancel = true
+                    };
+                    closeButton.Click += (s, e) => Close();
+
+                    buttons.Children.Add(printButton);
+                    buttons.Children.Add(closeButton);
+                }
+                else
+                {
+                    // Kaydetmeden önce önizleme: kayıt ancak Kaydet'e basılınca yapılır.
+                    var banner = new TextBlock
+                    {
+                        Text = isReturn
+                            ? "ÖNİZLEME: İade henüz KAYDEDİLMEDİ. Kaydet'e basınca iade alınır; Vazgeç'e basarsan hiçbir şey değişmez."
+                            : "ÖNİZLEME: Zimmet henüz KAYDEDİLMEDİ. Kaydet'e basınca zimmet kaydedilir; Vazgeç'e basarsan hiçbir şey değişmez.",
+                        FontWeight = FontWeights.SemiBold,
+                        Foreground = Brushes.DarkRed,
+                        Background = Brushes.LemonChiffon,
+                        Padding = new Thickness(10, 6, 10, 6),
+                        TextWrapping = TextWrapping.Wrap
+                    };
+                    DockPanel.SetDock(banner, Dock.Top);
+                    root.Children.Add(banner);
+
+                    var saveButton = new Button
+                    {
+                        Content = "Kaydet",
+                        Width = 100,
+                        Height = 30,
+                        Margin = new Thickness(0, 0, 8, 0),
+                        IsDefault = true
+                    };
+                    saveButton.Click += (s, e) =>
+                    {
+                        if (save(this))
+                        {
+                            DialogResult = true;
+                        }
+                    };
+
+                    var saveAndPrintButton = new Button
+                    {
+                        Content = "Kaydet ve Yazdır",
+                        Width = 130,
+                        Height = 30,
+                        Margin = new Thickness(0, 0, 8, 0)
+                    };
+                    saveAndPrintButton.Click += (s, e) =>
+                    {
+                        if (!save(this))
+                        {
+                            return;
+                        }
+
+                        // Kayıt yapıldı; yazdırma iptal edilse bile kayıt geçerlidir (sonra Zimmetler defterinden yazdırılabilir).
+                        printNow();
+                        DialogResult = true;
+                    };
+
+                    var cancelButton = new Button
+                    {
+                        Content = "Vazgeç",
+                        Width = 100,
+                        Height = 30,
+                        IsCancel = true
+                    };
+                    cancelButton.Click += (s, e) => DialogResult = false;
+
+                    buttons.Children.Add(saveButton);
+                    buttons.Children.Add(saveAndPrintButton);
+                    buttons.Children.Add(cancelButton);
+                }
+
                 DockPanel.SetDock(buttons, Dock.Bottom);
                 root.Children.Add(buttons);
                 root.Children.Add(viewer);

@@ -14,11 +14,24 @@
                       FontSize="15"
                       ToolTip="Ana Sayfa"
                       Click="HomeMenu_Click" />
-            <MenuItem Header="Ayarlar">
-                <MenuItem Header="Ürün Grupları" Click="TypesMenu_Click" />
-                <MenuItem Header="Ürün Bilgileri" Click="PropertiesMenu_Click" />
-                <MenuItem Header="Log" Click="LogMenu_Click" />
-                <MenuItem Header="Renk Ayarları" Click="ColorSettingsMenu_Click" />
+            <MenuItem Header="Dosya">
+                <MenuItem x:Name="UndoMenuItem"
+                          Header="Geri Al"
+                          InputGestureText="Ctrl+Z"
+                          ToolTip="Geri alınacak işlem yok"
+                          IsEnabled="False"
+                          Click="UndoMenu_Click" />
+                <MenuItem x:Name="RedoMenuItem"
+                          Header="İleri Al"
+                          InputGestureText="Ctrl+Y"
+                          ToolTip="İleri alınacak işlem yok"
+                          IsEnabled="False"
+                          Click="RedoMenu_Click" />
+                <Separator />
+                <MenuItem Header="Yedekleme">
+                    <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
+                    <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
+                </MenuItem>
                 <MenuItem Header="Dışa Aktar (Excel)">
                     <MenuItem Header="Depo + Hurda (Excel, tek dosya, iki sayfa)..." Click="ExportBothExcelMenu_Click" />
                     <MenuItem Header="Sadece Depo (Excel)..." Click="ExportDepotExcelMenu_Click" />
@@ -30,23 +43,15 @@
                     <MenuItem Header="Depoya (Excel/CSV)..." Click="ImportAllTypesMenu_Click" />
                     <MenuItem Header="Hurdaya (Excel/CSV)..." Click="ImportScrapMenu_Click" />
                 </MenuItem>
-                <MenuItem Header="Yedekleme">
-                    <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
-                    <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
-                </MenuItem>
                 <Separator />
                 <MenuItem Header="Tüm Verileri Sıfırla..." Foreground="#B00020" Click="ResetMenu_Click" />
             </MenuItem>
-            <MenuItem x:Name="UndoMenuItem"
-                      Header="Geri Al"
-                      ToolTip="Geri alınacak işlem yok"
-                      IsEnabled="False"
-                      Click="UndoMenu_Click" />
-            <MenuItem x:Name="RedoMenuItem"
-                      Header="İleri Al"
-                      ToolTip="İleri alınacak işlem yok"
-                      IsEnabled="False"
-                      Click="RedoMenu_Click" />
+            <MenuItem Header="Ayarlar">
+                <MenuItem Header="Ürün Grupları" Click="TypesMenu_Click" />
+                <MenuItem Header="Ürün Bilgileri" Click="PropertiesMenu_Click" />
+                <MenuItem Header="Log" Click="LogMenu_Click" />
+                <MenuItem Header="Renk Ayarları" Click="ColorSettingsMenu_Click" />
+            </MenuItem>
             <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
             <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />
             <MenuItem Header="Tutanaklar" Click="HandoversMenu_Click" />

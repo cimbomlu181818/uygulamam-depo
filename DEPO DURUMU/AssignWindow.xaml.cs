@@ -10,7 +10,8 @@ namespace DEPO_DURUMU
 {
     /// <summary>
     /// Bir ürünü (ya da adetli üründen bir miktarını) bir kişiye zimmetlemek için açılan pencere.
-    /// Zimmetle'ye basınca doğrudan Zimmetler defterine yazar; başarılıysa DialogResult true olur.
+    /// Zimmetle'ye basınca önce tutanak önizlemesi açılır; zimmet ancak orada Kaydet'e basılınca Zimmetler
+    /// defterine yazılır (Vazgeç'te forma dönülür). Kaydedilirse DialogResult true olur.
     /// </summary>
     public partial class AssignWindow : Window
     {
@@ -166,19 +167,20 @@ namespace DEPO_DURUMU
                 }
             }
 
-            var newIds = new List<int>();
+            // Zimmet BURADA kaydedilmez: önce tutanak önizlemesi açılır, kayıt ancak orada "Kaydet"e
+            // basılınca yapılır. Önizlemedeki ve defterdeki tarih/saat aynı olsun diye saat şimdi alınır.
+            var stamp = AssignmentRepository.NowRaw();
+            var registryNo = RegistryNoBox.Text.Trim();
+            var department = (DepartmentBox.Text ?? "").Trim();
+            var note = NoteBox.Text.Trim();
+            var drafts = new List<Assignment>();
 
             try
             {
                 if (_bulkIds == null)
                 {
-                    newIds.Add(AssignmentRepository.Assign(
-                        _productId,
-                        quantity,
-                        personName,
-                        RegistryNoBox.Text.Trim(),
-                        (DepartmentBox.Text ?? "").Trim(),
-                        NoteBox.Text.Trim()));
+                    drafts.Add(AssignmentRepository.BuildDraft(
+                        _productId, quantity, personName, registryNo, department, note, stamp));
                 }
                 else
                 {
@@ -190,46 +192,79 @@ namespace DEPO_DURUMU
                             continue;
                         }
 
-                        newIds.Add(AssignmentRepository.Assign(
-                            id,
-                            available,
-                            personName,
-                            RegistryNoBox.Text.Trim(),
-                            (DepartmentBox.Text ?? "").Trim(),
-                            NoteBox.Text.Trim()));
+                        drafts.Add(AssignmentRepository.BuildDraft(
+                            id, available, personName, registryNo, department, note, stamp));
                     }
                 }
             }
             catch (Exception ex)
             {
-                var extra = newIds.Count > 0
-                    ? "\n\nBundan önce " + newIds.Count + " ürün zimmetlendi (Zimmetler ekranından görebilirsin)."
-                    : "";
-
-                MessageBox.Show(this, "Zimmetlenemedi:\n" + ex.Message + extra, "Depo Durumu",
+                MessageBox.Show(this, "Tutanak hazırlanamadı:\n" + ex.Message, "Depo Durumu",
                     MessageBoxButton.OK, MessageBoxImage.Error);
-
-                if (newIds.Count > 0)
-                {
-                    DialogResult = true;
-                }
-
                 return;
             }
 
-            // Zimmet kaydedildi: tutanak hemen yazdırılmaz, önce ekranda (önizleme) açılır.
-            // Yazdırmak istenirse önizleme penceresindeki "Yazdır" düğmesi kullanılır.
-            var assignments = newIds
-                .Select(id => AssignmentRepository.GetById(id))
-                .Where(a => a != null)
-                .ToList();
-
-            if (assignments.Count > 0)
+            if (drafts.Count == 0)
             {
-                AssignmentReceiptPrinter.ShowPreview(this, assignments);
+                ShowWarning("Zimmetlenebilecek ürün kalmadı.");
+                return;
             }
 
-            DialogResult = true;
+            // Vazgeç denirse bu forma geri dönülür; yazılanlar yerinde durur, hiçbir şey kaydedilmemiştir.
+            var saved = AssignmentReceiptPrinter.ShowSavePreview(
+                this, drafts, false, owner => SaveDrafts(owner, drafts, stamp));
+
+            if (saved)
+            {
+                DialogResult = true;
+            }
+        }
+
+        /// <summary>
+        /// Önizlemede "Kaydet"e basılınca çalışır: taslakları zimmet defterine yazar.
+        /// True dönerse önizleme kapanır. Hiçbiri kaydedilemediyse false döner ve önizleme açık kalır.
+        /// </summary>
+        private bool SaveDrafts(Window owner, List<Assignment> drafts, string stamp)
+        {
+            var savedCount = 0;
+
+            try
+            {
+                foreach (var draft in drafts)
+                {
+                    AssignmentRepository.Assign(
+                        draft.ProductId.Value,
+                        draft.Quantity,
+                        draft.PersonName,
+                        draft.RegistryNo,
+                        draft.Department,
+                        draft.AssignedNote,
+                        stamp);
+
+                    savedCount++;
+                }
+            }
+            catch (Exception ex)
+            {
+                var extra = savedCount > 0
+                    ? "\n\nBundan önce " + savedCount + " ürün zimmetlendi (Zimmetler ekranından görebilirsin)."
+                    : "";
+
+                MessageBox.Show(owner, "Zimmetlenemedi:\n" + ex.Message + extra, "Depo Durumu",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+
+                if (savedCount == 0)
+                {
+                    return false;
+                }
+
+                // Bir kısmı kaydedildi: tekrar Kaydet'e basılıp çift kayıt olmasın diye pencere kapanır.
+                // Yazdırma da sadece gerçekten kaydedilenleri bassın diye kaydedilmeyenler listeden çıkarılır.
+                drafts.RemoveRange(savedCount, drafts.Count - savedCount);
+                return true;
+            }
+
+            return true;
         }
 
         private void ShowWarning(string message)

@@ -521,7 +521,7 @@ namespace DEPO_DURUMU.Data
         /// Elde yeterli miktar yoksa ya da kişi adı boşsa hata fırlatır.
         /// </summary>
         public static int Assign(int productId, int quantity, string personName,
-            string registryNo, string department, string note)
+            string registryNo, string department, string note, string assignedAt = null)
         {
             if (string.IsNullOrWhiteSpace(personName))
             {
@@ -567,7 +567,8 @@ namespace DEPO_DURUMU.Data
                     command.Parameters.Add(new SQLiteParameter("@personName", personName.Trim()));
                     command.Parameters.Add(new SQLiteParameter("@registryNo", NullIfEmpty(registryNo)));
                     command.Parameters.Add(new SQLiteParameter("@department", NullIfEmpty(department)));
-                    command.Parameters.Add(new SQLiteParameter("@assignedAt", NowRaw()));
+                    command.Parameters.Add(new SQLiteParameter("@assignedAt",
+                        string.IsNullOrWhiteSpace(assignedAt) ? NowRaw() : assignedAt));
                     command.Parameters.Add(new SQLiteParameter("@note", NullIfEmpty(note)));
 
                     newId = Convert.ToInt32(command.ExecuteScalar());
@@ -582,8 +583,62 @@ namespace DEPO_DURUMU.Data
             return newId;
         }
 
-        /// <summary>Bir zimmeti iade alınmış olarak işaretler; ürün bilgisi o anki hâliyle kayda donar.</summary>
-        public static void Return(int assignmentId, string note)
+        /// <summary>
+        /// Zimmet tutanağını KAYDETMEDEN önizlemek için, Assign'ın yazacağı kaydın aynısını hazırlar
+        /// (defterde hiçbir şey değişmez; Id 0 kalır). Assign ile aynı kontrolleri yapar ve aynı hatayı fırlatır.
+        /// </summary>
+        public static Assignment BuildDraft(int productId, int quantity, string personName,
+            string registryNo, string department, string note, string assignedAt)
+        {
+            if (string.IsNullOrWhiteSpace(personName))
+            {
+                throw new InvalidOperationException("Kişi adı boş bırakılamaz.");
+            }
+
+            if (quantity < 1)
+            {
+                throw new InvalidOperationException("Miktar 1 veya daha büyük olmalı.");
+            }
+
+            using (var connection = Database.OpenConnection())
+            {
+                var info = ReadProductInfo(connection, productId);
+                if (!info.Exists)
+                {
+                    throw new InvalidOperationException("Ürün depoda bulunamadı.");
+                }
+
+                var available = info.Quantity - GetActiveQuantity(connection, productId, 0);
+                if (quantity > available)
+                {
+                    throw new InvalidOperationException(
+                        "Bu üründen zimmetlenebilecek miktar en fazla " + (available < 0 ? 0 : available) + ".");
+                }
+
+                return new Assignment
+                {
+                    Id = 0,
+                    ProductId = productId,
+                    TypeName = info.TypeName,
+                    SystemName = info.SystemName,
+                    SerialNo = info.SerialNo,
+                    Quantity = quantity,
+                    PersonName = personName.Trim(),
+                    RegistryNo = Clean(registryNo),
+                    Department = Clean(department),
+                    AssignedAt = string.IsNullOrWhiteSpace(assignedAt) ? NowRaw() : assignedAt,
+                    AssignedNote = Clean(note),
+                    IsReturned = false,
+                    IsLinked = true
+                };
+            }
+        }
+
+        /// <summary>
+        /// Bir zimmeti iade alınmış olarak işaretler; ürün bilgisi o anki hâliyle kayda donar.
+        /// returnedAt verilirse iade saati olarak o yazılır (tutanakta gösterilenle aynı olsun diye).
+        /// </summary>
+        public static void Return(int assignmentId, string note, string returnedAt = null)
         {
             Assignment assignment;
 
@@ -605,7 +660,8 @@ namespace DEPO_DURUMU.Data
                     command.CommandText =
                         "UPDATE Assignments SET IsReturned = 1, ReturnedAt = @returnedAt, ReturnedNote = @note, " +
                         "TypeName = @typeName, SystemName = @systemName, SerialNo = @serialNo WHERE Id = @id;";
-                    command.Parameters.Add(new SQLiteParameter("@returnedAt", NowRaw()));
+                    command.Parameters.Add(new SQLiteParameter("@returnedAt",
+                        string.IsNullOrWhiteSpace(returnedAt) ? NowRaw() : returnedAt));
                     command.Parameters.Add(new SQLiteParameter("@note", NullIfEmpty(note)));
                     command.Parameters.Add(new SQLiteParameter("@typeName", assignment.TypeName));
                     command.Parameters.Add(new SQLiteParameter("@systemName", NullIfEmpty(assignment.SystemName)));
