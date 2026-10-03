@@ -110,7 +110,7 @@ namespace DEPO_DURUMU
 
             var dialog = new Microsoft.Win32.SaveFileDialog
             {
-                Title = "Tüm Grupları Dışa Aktar",
+                Title = "Tüm Grupları Dışa Aktar (CSV)",
                 FileName = "Depo_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".csv",
                 Filter = "CSV dosyası (*.csv)|*.csv"
             };
@@ -616,7 +616,7 @@ namespace DEPO_DURUMU
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Title = "Tüm Grupları İçe Aktar",
+                Title = "Depoya İçe Aktar",
                 Filter = "Excel veya CSV (*.xlsx;*.xlsm;*.csv)|*.xlsx;*.xlsm;*.csv|Tüm dosyalar (*.*)|*.*"
             };
 
@@ -650,14 +650,14 @@ namespace DEPO_DURUMU
             }
 
             // Önce kısa, örnekli bilgi ekranı.
-            if (!ShowImportInfo("Tüm Grupları İçe Aktar", false))
+            if (!ShowImportInfo("Depoya İçe Aktar", false))
             {
                 return;
             }
 
             // Kullanıcı satırları ve sütunları kendisi ayarlar.
             int cinsColumn, serialColumn, systemColumn;
-            rows = ShowImportSettings(rows, "Tüm Grupları İçe Aktar",
+            rows = ShowImportSettings(rows, "Depoya İçe Aktar",
                 out cinsColumn, out serialColumn, out systemColumn);
             if (rows == null)
             {

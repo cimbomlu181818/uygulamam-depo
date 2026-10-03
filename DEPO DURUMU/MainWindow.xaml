@@ -18,16 +18,21 @@
                 <MenuItem Header="Ürün Grupları" Click="TypesMenu_Click" />
                 <MenuItem Header="Ürün Bilgileri" Click="PropertiesMenu_Click" />
                 <MenuItem Header="Log" Click="LogMenu_Click" />
-                <MenuItem Header="Tüm Grupları Dışa Aktar (CSV)..." Click="ExportAllTypesMenu_Click" />
-                <MenuItem Header="Excel'e Dışa Aktar">
-                    <MenuItem Header="Depo + Hurda (tek dosya, iki sayfa)..." Click="ExportBothExcelMenu_Click" />
-                    <MenuItem Header="Sadece Depo..." Click="ExportDepotExcelMenu_Click" />
-                    <MenuItem Header="Sadece Hurda..." Click="ExportScrapExcelMenu_Click" />
+                <MenuItem Header="Dışa Aktar">
+                    <MenuItem Header="Depo + Hurda (Excel, tek dosya, iki sayfa)..." Click="ExportBothExcelMenu_Click" />
+                    <MenuItem Header="Sadece Depo (Excel)..." Click="ExportDepotExcelMenu_Click" />
+                    <MenuItem Header="Sadece Hurda (Excel)..." Click="ExportScrapExcelMenu_Click" />
+                    <Separator />
+                    <MenuItem Header="Tüm Grupları (CSV)..." Click="ExportAllTypesMenu_Click" />
                 </MenuItem>
-                <MenuItem Header="Tüm Grupları İçe Aktar (CSV)..." Click="ImportAllTypesMenu_Click" />
-                <MenuItem Header="Hurdaya İçe Aktar (Excel/CSV)..." Click="ImportScrapMenu_Click" />
-                <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
-                <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
+                <MenuItem Header="İçe Aktar">
+                    <MenuItem Header="Depoya (Excel/CSV)..." Click="ImportAllTypesMenu_Click" />
+                    <MenuItem Header="Hurdaya (Excel/CSV)..." Click="ImportScrapMenu_Click" />
+                </MenuItem>
+                <MenuItem Header="Yedekleme">
+                    <MenuItem Header="Yedek Al..." Click="BackupButton_Click" />
+                    <MenuItem Header="Yedekten Geri Yükle..." Click="RestoreButton_Click" />
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="Tüm Verileri Sıfırla..." Foreground="#B00020" Click="ResetMenu_Click" />
             </MenuItem>
