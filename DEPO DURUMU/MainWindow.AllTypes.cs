@@ -2529,7 +2529,7 @@ namespace DEPO_DURUMU
                 Owner = this,
                 ShowInTaskbar = false,
                 Background = Brushes.White,
-                FontSize = 13
+                FontSize = 11
             };
 
             var root = new DockPanel { Margin = new Thickness(14) };
@@ -2678,7 +2678,7 @@ namespace DEPO_DURUMU
             {
                 Text = "(örnek: İL, CİNS, SERİ NO, MARKA vs.)",
                 Foreground = Brushes.DimGray,
-                FontSize = 12,
+                FontSize = 10,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(6, 0, 0, 0)
             });
@@ -2691,7 +2691,7 @@ namespace DEPO_DURUMU
             {
                 Text = "(örnek: TELSİZ, H4V9C2T7QZ, LENOVO vs.)",
                 Foreground = Brushes.DimGray,
-                FontSize = 12,
+                FontSize = 10,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(6, 0, 0, 0)
             });
@@ -2703,7 +2703,7 @@ namespace DEPO_DURUMU
             {
                 Text = "(boş bırakırsan dosyanın sonuna kadar)",
                 Foreground = Brushes.DimGray,
-                FontSize = 12,
+                FontSize = 10,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(6, 0, 0, 0)
             });
@@ -2732,7 +2732,33 @@ namespace DEPO_DURUMU
             // ---------- Grup sütununun önemini anlatan uyarı ----------
             var groupNoteText = new TextBlock { TextWrapping = TextWrapping.Wrap };
             groupNoteText.Inlines.Add(new System.Windows.Documents.Run("ÖNEMLİ: ") { FontWeight = FontWeights.Bold });
-            groupNoteText.Inlines.Add(new System.Windows.Documents.Run("\"Grup (ürünün türü)\"") { FontWeight = FontWeights.Bold });
+            var groupBlinkColor = Color.FromRgb(0x8B, 0x00, 0x00);   // koyu kırmızı zemin
+            var groupBlinkBack = new SolidColorBrush(Color.FromArgb(0, groupBlinkColor.R, groupBlinkColor.G, groupBlinkColor.B));
+            var groupBlinkFore = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            groupBlinkBack.BeginAnimation(SolidColorBrush.ColorProperty, new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromArgb(0, groupBlinkColor.R, groupBlinkColor.G, groupBlinkColor.B),
+                To = groupBlinkColor,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            });
+            groupBlinkFore.BeginAnimation(SolidColorBrush.ColorProperty, new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromRgb(0x1C, 0x1C, 0x1C),
+                To = Colors.White,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            });
+            groupNoteText.Inlines.Add(new System.Windows.Documents.Run("\"Grup (ürünün türü)\"")
+            {
+                FontWeight = FontWeights.Bold,
+                Background = groupBlinkBack,
+                Foreground = groupBlinkFore
+            });
             groupNoteText.Inlines.Add(new System.Windows.Documents.Run(
                 " sütunu çok önemlidir. Program ürünleri bu sütuna göre gruplar (telsiz, bilgisayar, yazıcı vs.). " +
                 "Ürünün türünün yazdığı sütunu mutlaka seç. Dosyada böyle bir sütun yoksa Devam'a basınca " +
@@ -2766,7 +2792,7 @@ namespace DEPO_DURUMU
             {
                 Text = "Her sütunda ne yazdığını seç",
                 FontWeight = FontWeights.Bold,
-                FontSize = 15,
+                FontSize = 13,
                 VerticalAlignment = VerticalAlignment.Center
             });
 
@@ -2945,7 +2971,7 @@ namespace DEPO_DURUMU
 
                 item.HeaderInfo = new TextBlock
                 {
-                    FontSize = 11,
+                    FontSize = 9,
                     Foreground = Brushes.Gray,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 };
@@ -3896,7 +3922,7 @@ namespace DEPO_DURUMU
                 {
                     Text = example,
                     Foreground = new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x33)),
-                    FontSize = 12,
+                    FontSize = 10,
                     TextWrapping = TextWrapping.Wrap,
                     Padding = new Thickness(6, 3, 6, 3)
                 }
