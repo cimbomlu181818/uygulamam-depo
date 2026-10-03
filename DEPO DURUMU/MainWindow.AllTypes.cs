@@ -2467,12 +2467,13 @@ namespace DEPO_DURUMU
         // bilinen başlıkları (Grup, Seri No, Adet...) hazır seçili getirir, kullanıcı değiştirebilir.
         // Sonuç: ilk satırı sütun adları, kalan satırları ürünler olan, sütun sırası korunmuş bir tablo.
 
-        private const string RoleOther = "Diğer özellik (marka, model...)";
-        private const string RoleCins = "Grup (ürünün türü)";
-        private const string RoleSerial = "Seri No (ürünün seri numarası)";
-        private const string RoleQuantity = "Adet (kaç tane olduğu)";
-        private const string RoleSystem = "Sistem Adı (ETMYS Adı)";
-        private const string RoleSkip = "Alma (aktarma)";
+        private const string RoleCins = "Grup (ürünün türü) → telsiz, kişisel bilgisayar, telefon vs. yazan sütunu seç";
+        private const string RoleSerial = "Seri No (ürünün seri numarası) → H4V9C2T7QZ gibi her ürüne özel numara yazan sütunu seç";
+        private const string RoleSystem = "Sistem Adı (ETMYS Adı) → LENOVO BİLGİSAYAR gibi sistemdeki kayıtlı ad yazan sütunu seç";
+        private const string RoleQuantity = "Adet (kaç tane olduğu) → 1, 2, 10 gibi kaç tane olduğu yazan sütunu seç";
+        private const string RoleOther = "Diğer özellik (marka, model...) → LENOVO gibi marka, 160 GB gibi hafıza yazan sütunu seç";
+        // Listede görünmez; seçim yapılmamış sütun demektir (aktarılmaz). Sütun aktarmama konusu henüz karara bağlanmadı.
+        private const string RoleSkip = "(seçilmedi)";
         private const string EmptySample = "(boş)";
 
         // Dosyadaki satırların Excel'deki gerçek numaraları (boş satırlar atlandığı için ayrıca tutulur).
@@ -2520,7 +2521,7 @@ namespace DEPO_DURUMU
             var window = new Window
             {
                 Title = title + " — İçe Aktarma Ayarları",
-                Width = 1000,
+                Width = 1150,
                 Height = 780,
                 MinWidth = 720,
                 MinHeight = 520,
@@ -2671,12 +2672,12 @@ namespace DEPO_DURUMU
             var endBox = new TextBox { Width = 60, VerticalContentAlignment = VerticalAlignment.Center };
 
             var line1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };
-            line1.Children.Add(makeLabel("Başlıklar şu satırda:"));
+            line1.Children.Add(MakeRedBlinkLabel("Başlıklar şu satırda:"));
             line1.Children.Add(headerBox);
             line1.Children.Add(noHeaderCheck);
 
             var line2 = new StackPanel { Orientation = Orientation.Horizontal };
-            line2.Children.Add(makeLabel("Ürünler şu satırdan başlıyor:"));
+            line2.Children.Add(MakeRedBlinkLabel("Ürünler şu satırdan başlıyor:"));
             line2.Children.Add(startBox);
             var untilLabel = makeLabel("şu satıra kadar:");
             untilLabel.Margin = new Thickness(18, 0, 6, 0);
@@ -2708,21 +2709,13 @@ namespace DEPO_DURUMU
 
             // ---------- 2. adım açıklaması (yanıp söner) ----------
             var step2 = MakeStepBanner("2) Sütunları tanıt:",
-                "Aşağıdaki listede her sütunda ne yazdığını seç, kullanmayacaklarına \"Alma\" de.",
+                "Aşağıdaki listede her sütunda ne yazdığını seç.",
                 "Örnek: altında LMXLKD9 gibi numaralar varsa \"Seri No\", KİŞİSEL BİLGİSAYAR gibi türler varsa \"Grup\" seç.");
             DockPanel.SetDock(step2, Dock.Top);
 
             // ---------- Sütun listesi ----------
             var columnsTitle = new DockPanel { Margin = new Thickness(0, 0, 0, 4) };
             DockPanel.SetDock(columnsTitle, Dock.Top);
-
-            var bulkButton = new Button
-            {
-                Content = "Veri olan tüm sütunları al",
-                Padding = new Thickness(10, 3, 10, 3)
-            };
-            DockPanel.SetDock(bulkButton, Dock.Right);
-            columnsTitle.Children.Add(bulkButton);
 
             var helpButton = new Button
             {
@@ -2747,7 +2740,7 @@ namespace DEPO_DURUMU
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
                 g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
-                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
+                g.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(500) });
                 return g;
             };
 
@@ -2894,7 +2887,7 @@ namespace DEPO_DURUMU
             };
 
             // ---------- Sütun satırlarını oluştur (dolu olan her sütun için bir satır) ----------
-            var roleNames = new[] { RoleOther, RoleCins, RoleSerial, RoleQuantity, RoleSystem, RoleSkip };
+            var roleNames = new[] { RoleCins, RoleSerial, RoleSystem, RoleQuantity, RoleOther };
 
             for (var c = 0; c < width; c++)
             {
@@ -3047,24 +3040,6 @@ namespace DEPO_DURUMU
                 ShowColumnHelp(window);
             };
 
-            bulkButton.Click += delegate
-            {
-                foreach (var col in columnItems)
-                {
-                    if (col.HasData && (col.RoleBox.SelectedItem as string) == RoleSkip)
-                    {
-                        col.RoleEdited = true;
-                        updating = true;
-                        col.RoleBox.SelectedItem = RoleOther;
-                        if (col.NameBox.Text.Trim().Length == 0)
-                        {
-                            col.NameBox.Text = "Sütun " + col.Letter;
-                        }
-                        updating = false;
-                    }
-                }
-            };
-
             // ---------- Devam: kontrol et ve sonucu hazırla ----------
             List<string[]> normalizedResult = null;
             var chosenCins = -1;
@@ -3167,7 +3142,7 @@ namespace DEPO_DURUMU
 
                     if (names[c2].Length == 0)
                     {
-                        warn("Sütun " + ColumnLetter(c2) + " için bir ad yaz (ya da \"Alma\" seç).");
+                        warn("Sütun " + ColumnLetter(c2) + " için bir ad yaz.");
                         return;
                     }
 
@@ -3322,18 +3297,17 @@ namespace DEPO_DURUMU
 
             // 2) Sütunları tanıt
             panel.Children.Add(MakeBlinkLine("2) Sütunları tanıt:",
-                "Her sütunun ne olduğunu seç. Kullanmayacaklarına \"Alma\" de."));
+                "Her sütunun ne olduğunu seç."));
 
             var rolesTable = MakeMiniTable(
                 new[]
                 {
                     new[] { "Sütunda yazan", "", "Ne seçilir?" },
-                    new[] { "ÇORUM", "→", "Alma (aktarma)" },
                     new[] { "YAZICI", "→", "Grup (ürünün türü)" },
                     new[] { "4E89BKBQ900007N", "→", "Seri No" },
                     new[] { "SAMSUNG", "→", "Diğer özellik (adı: Marka)" }
                 },
-                new Brush[] { Brushes.WhiteSmoke, null, null, null, null },
+                new Brush[] { Brushes.WhiteSmoke, null, null, null },
                 false);
             panel.Children.Add(MakeExampleBox(rolesTable));
 
@@ -3583,6 +3557,55 @@ namespace DEPO_DURUMU
             };
         }
 
+        /// <summary>Zemini koyu kırmızıya dönüp sönen (yanıp sönen) kısa yazı. Yazı rengi kırmızı zeminde beyaza döner.</summary>
+        private static UIElement MakeRedBlinkLabel(string text)
+        {
+            var backColor = Color.FromRgb(0x8B, 0x00, 0x00);   // koyu kırmızı zemin
+
+            var back = new SolidColorBrush(Color.FromArgb(0, backColor.R, backColor.G, backColor.B));
+            var fore = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+
+            var label = new TextBlock
+            {
+                Text = text,
+                Foreground = fore,
+                FontWeight = FontWeights.Bold,
+                VerticalAlignment = VerticalAlignment.Center,
+                Padding = new Thickness(6, 2, 6, 2)
+            };
+
+            var backAnimation = new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromArgb(0, backColor.R, backColor.G, backColor.B),
+                To = backColor,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            };
+            back.BeginAnimation(SolidColorBrush.ColorProperty, backAnimation);
+
+            var foreAnimation = new System.Windows.Media.Animation.ColorAnimation
+            {
+                From = Color.FromRgb(0x1C, 0x1C, 0x1C),
+                To = Colors.White,
+                Duration = new Duration(TimeSpan.FromMilliseconds(700)),
+                AutoReverse = true,
+                RepeatBehavior = System.Windows.Media.Animation.RepeatBehavior.Forever,
+                EasingFunction = new System.Windows.Media.Animation.SineEase()
+            };
+            fore.BeginAnimation(SolidColorBrush.ColorProperty, foreAnimation);
+
+            return new Border
+            {
+                Background = back,
+                CornerRadius = new CornerRadius(4),
+                Child = label,
+                Margin = new Thickness(0, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+        }
+
         /// <summary>"Hangi sütuna ne seçmeliyim?" yardım penceresi.</summary>
         private void ShowColumnHelp(Window owner)
         {
@@ -3613,9 +3636,7 @@ namespace DEPO_DURUMU
                     "Aynı üründen kaç tane olduğunu gösteren sayı. Bu sütun yoksa her satır 1 adet sayılır."),
                 new KeyValuePair<string, string>("Diğer özellik",
                     "Marka, model, işlemci, RAM gibi başka bilgiler. \"Program bu bilgiye ne ad versin?\" " +
-                    "kutusuna o bilginin adını yaz (örnek: Marka)."),
-                new KeyValuePair<string, string>("Alma",
-                    "İl, birim, not gibi aktarmak istemediğin sütunlar.")
+                    "kutusuna o bilginin adını yaz (örnek: Marka).")
             };
 
             var panel = new StackPanel { Margin = new Thickness(16) };
