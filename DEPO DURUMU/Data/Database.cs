@@ -54,6 +54,7 @@ namespace DEPO_DURUMU.Data
 
             EnsureProductsSortOrderColumn();
             EnsureQuantityColumns();
+            EnsureNoteBooks();
             PropertyDefinitionRepository.EnsureDefaults();
             RepairScientificNumbers();
         }
@@ -268,6 +269,73 @@ namespace DEPO_DURUMU.Data
             }
         }
 
+        /// <summary>
+        /// Notlar için çoklu Excel (defter) desteğini hazırlar: NoteSheets tablosuna NotebookId sütununu ekler.
+        /// Hiçbir defterine bağlı olmayan eski sayfalar varsa, ilk deftere (yoksa "Notlar" adlı yeni deftere) bağlar.
+        /// Zaten hazırsa hiçbir şeyi değiştirmez.
+        /// </summary>
+        private static void EnsureNoteBooks()
+        {
+            using (var connection = OpenConnection())
+            {
+                if (!ColumnExists(connection, "NoteSheets", "NotebookId"))
+                {
+                    using (var alterCommand = connection.CreateCommand())
+                    {
+                        alterCommand.CommandText =
+                            "ALTER TABLE NoteSheets ADD COLUMN NotebookId INTEGER NOT NULL DEFAULT 0;";
+                        alterCommand.ExecuteNonQuery();
+                    }
+                }
+
+                int orphanCount;
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT COUNT(*) FROM NoteSheets WHERE NotebookId = 0;";
+                    orphanCount = Convert.ToInt32(command.ExecuteScalar());
+                }
+
+                if (orphanCount == 0)
+                {
+                    return;
+                }
+
+                long bookId;
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "SELECT Id FROM NoteBooks ORDER BY SortOrder, Id LIMIT 1;";
+                    var found = command.ExecuteScalar();
+                    bookId = found == null || found == DBNull.Value ? 0 : Convert.ToInt64(found);
+                }
+
+                if (bookId == 0)
+                {
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText =
+                            "INSERT INTO NoteBooks (Name, SortOrder, CreatedAt) VALUES (@name, 1, @now);";
+                        command.Parameters.Add(new SQLiteParameter("@name", "Notlar"));
+                        command.Parameters.Add(new SQLiteParameter("@now",
+                            DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)));
+                        command.ExecuteNonQuery();
+                    }
+
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = "SELECT last_insert_rowid();";
+                        bookId = Convert.ToInt64(command.ExecuteScalar());
+                    }
+                }
+
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = "UPDATE NoteSheets SET NotebookId = @id WHERE NotebookId = 0;";
+                    command.Parameters.Add(new SQLiteParameter("@id", bookId));
+                    command.ExecuteNonQuery();
+                }
+            }
+        }
+
         private static bool ColumnExists(SQLiteConnection connection, string table, string column)
         {
             using (var command = connection.CreateCommand())
@@ -432,6 +500,13 @@ CREATE TABLE IF NOT EXISTS NoteSheets (
     ColumnWidths  TEXT,
     Data          TEXT,
     UpdatedAt     TEXT
+);
+-- Notlar: bardaki her Excel butonu bir defterdir; defterin içindeki sayfalar NoteSheets tablosunda durur (NotebookId ile bağlanır).
+CREATE TABLE IF NOT EXISTS NoteBooks (
+    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name          TEXT    NOT NULL,
+    SortOrder     INTEGER NOT NULL DEFAULT 0,
+    CreatedAt     TEXT
 );
 
 ";

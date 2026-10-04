@@ -126,6 +126,9 @@ namespace DEPO_DURUMU
             public string Last;
             public readonly Dictionary<int, HashSet<string>> Filters = new Dictionary<int, HashSet<string>>();
 
+            /// <summary>"Filtre" düğmesi açık mı? Kapalıyken 1. satır sıradan bir satırdır, filtre okları görünmez.</summary>
+            public bool FilterOn;
+
             public void PushUndo(string snapshot)
             {
                 Undo.Add(snapshot);
@@ -190,9 +193,15 @@ namespace DEPO_DURUMU
         private int _dragLastRow;
         private int _dragLastCol;
 
-        public NotesWindow()
+        // Bu pencerenin hangi Excel'i (defteri) açtığı. Sayfalar yalnızca bu defterden okunur / bu deftere eklenir.
+        private readonly int _notebookId;
+
+        public NotesWindow(int notebookId, string notebookName)
         {
             InitializeComponent();
+
+            _notebookId = notebookId;
+            Title = notebookName;
 
             SheetGrid.AddHandler(ScrollViewer.ScrollChangedEvent, new ScrollChangedEventHandler(SheetGrid_ScrollChanged));
 
@@ -205,12 +214,12 @@ namespace DEPO_DURUMU
 
             try
             {
-                _sheets.AddRange(NoteRepository.LoadAll());
+                _sheets.AddRange(NoteRepository.LoadAll(_notebookId));
 
                 if (_sheets.Count == 0)
                 {
                     var first = NoteSheet.CreateEmpty("Notlar1");
-                    NoteRepository.Insert(first);
+                    NoteRepository.Insert(first, _notebookId);
                     _sheets.Add(first);
                 }
             }
@@ -389,6 +398,9 @@ namespace DEPO_DURUMU
                 SheetGrid.ItemsSource = null;
                 SheetGrid.Columns.Clear();
                 _filterButtons.Clear();
+
+                // Filtre kapalıyken 1. satır sıradan satırdır; açıkken başlık gibi renklenir.
+                SheetGrid.RowStyle = State.FilterOn ? (Style)SheetGrid.FindResource("FilterHeaderRowStyle") : null;
 
                 for (var c = 0; c < _current.ColumnCount; c++)
                 {
@@ -1499,6 +1511,7 @@ namespace DEPO_DURUMU
             UndoButton.IsEnabled = hasSheet && State.Undo.Count > 0;
             RedoButton.IsEnabled = hasSheet && State.Redo.Count > 0;
             ClearFiltersButton.IsEnabled = hasSheet && State.Filters.Count > 0;
+            FilterToggleButton.IsChecked = hasSheet && State.FilterOn;
         }
 
         // =====================================================================
@@ -1875,6 +1888,29 @@ namespace DEPO_DURUMU
             SheetGrid.Focus();
         }
 
+        private void FilterToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_current == null || !_states.ContainsKey(_current))
+            {
+                FilterToggleButton.IsChecked = false;
+                return;
+            }
+
+            CommitGridEdit();
+
+            State.FilterOn = FilterToggleButton.IsChecked == true;
+
+            // Filtre kapanırken uygulanmış tüm filtreler kalkar, bütün satırlar geri gelir.
+            if (!State.FilterOn)
+            {
+                State.Filters.Clear();
+            }
+
+            RebuildGrid();
+            UpdateStatus();
+            SheetGrid.Focus();
+        }
+
         private void ClearFiltersButton_Click(object sender, RoutedEventArgs e)
         {
             if (_current == null)
@@ -1930,6 +1966,12 @@ namespace DEPO_DURUMU
 
         private void OnFilterButtonCreated(int column, Button button)
         {
+            // Filtre kapalıysa ok hiç görünmez (Excel'de filtre açılmadan ok olmaz).
+            if (_current == null || !_states.ContainsKey(_current) || !State.FilterOn)
+            {
+                button.Visibility = Visibility.Collapsed;
+            }
+
             // Düğme ekrana girince listeye alınır, çıkınca bırakılır (kaydırmada sürekli yenilenir).
             button.Loaded += delegate
             {
@@ -2292,7 +2334,7 @@ namespace DEPO_DURUMU
 
             try
             {
-                NoteRepository.Insert(sheet);
+                NoteRepository.Insert(sheet, _notebookId);
             }
             catch (Exception ex)
             {
@@ -2330,7 +2372,7 @@ namespace DEPO_DURUMU
 
             try
             {
-                NoteRepository.Insert(copy);
+                NoteRepository.Insert(copy, _notebookId);
                 HookSheet(copy);
                 _sheets.Insert(_sheets.IndexOf(sheet) + 1, copy);
                 NoteRepository.SaveOrder(_sheets);
@@ -2417,7 +2459,7 @@ namespace DEPO_DURUMU
                 var fresh = NoteSheet.CreateEmpty("Notlar1");
                 try
                 {
-                    NoteRepository.Insert(fresh);
+                    NoteRepository.Insert(fresh, _notebookId);
                 }
                 catch (Exception ex)
                 {

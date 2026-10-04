@@ -62,6 +62,7 @@ namespace DEPO_DURUMU
 
             _selected.Clear();
             ShowHome();
+            RefreshNotebookButtons();
 
             var message = "Sıfırlama tamamlandı. Program ilk kurulmuş gibi boş.";
             if (backupPath != null)

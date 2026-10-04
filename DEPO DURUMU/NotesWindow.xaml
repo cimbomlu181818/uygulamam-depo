@@ -47,6 +47,12 @@
                     Margin="0,0,16,0"
                     ToolTip="Ctrl+Y"
                     Click="RedoButton_Click" />
+            <ToggleButton x:Name="FilterToggleButton"
+                          Content="Filtre"
+                          Width="80" Height="26"
+                          Margin="0,0,6,0"
+                          ToolTip="Filtre oklarını aç / kapat (Excel'deki Veri &gt; Filtre gibi)"
+                          Click="FilterToggleButton_Click" />
             <Button x:Name="ClearFiltersButton"
                     Content="Filtreleri Temizle"
                     Width="120" Height="26"
@@ -156,9 +162,9 @@
                 </DataTemplate>
             </DataGrid.RowHeaderTemplate>
 
-            <!-- 1. satır başlık satırıdır: hafif renkli ve kalın, her hücresinde filtre oku var -->
-            <DataGrid.RowStyle>
-                <Style TargetType="DataGridRow">
+            <!-- Bu stil yalnızca "Filtre" düğmesi açıkken kullanılır: 1. satır başlık olur (hafif renkli, kalın, filtre okları görünür) -->
+            <DataGrid.Resources>
+                <Style x:Key="FilterHeaderRowStyle" TargetType="DataGridRow">
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsHeader}" Value="True">
                             <Setter Property="Background" Value="#EAF1FB" />
@@ -166,7 +172,7 @@
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
-            </DataGrid.RowStyle>
+            </DataGrid.Resources>
 
             <DataGrid.ContextMenu>
                 <ContextMenu>

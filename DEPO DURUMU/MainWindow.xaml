@@ -9,7 +9,7 @@
     <DockPanel>
 
         <!-- ÜST MENÜ (her pencerede görünecek) -->
-        <Menu DockPanel.Dock="Top" Padding="4">
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top" Padding="4" Loaded="MainMenu_Loaded">
             <MenuItem Header="🏠"
                       FontSize="15"
                       ToolTip="Ana Sayfa"
@@ -55,7 +55,11 @@
             <MenuItem Header="Hurda" Click="ScrapMenu_Click" />
             <MenuItem Header="Zimmetler" Click="AssignmentsMenu_Click" />
             <MenuItem Header="Tutanaklar" Click="HandoversMenu_Click" />
-            <MenuItem Header="Notlar" Click="NotesMenu_Click" />
+            <!-- NOTLAR: "+ Yeni Excel" ad sorar ve yeni bir Excel açar; oluşturulan her Excel bu düğmenin yanına kendi adıyla bir düğme olarak eklenir (kodla). -->
+            <MenuItem x:Name="NewNotebookMenuItem"
+                      Header="+ Yeni Excel"
+                      ToolTip="Yeni bir Excel (not tablosu) oluştur"
+                      Click="NewNotebookMenu_Click" />
         </Menu>
 
         <!-- MENÜNÜN ALTINDAKİ ALAN: iki sayfa üst üste durur, biri görünür -->
