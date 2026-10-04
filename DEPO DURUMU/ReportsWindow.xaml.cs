@@ -31,7 +31,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Raporlar okunamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Raporlar okunamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 reports = new List<SavedReport>();
             }
@@ -67,7 +67,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "İşlemler okunamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "İşlemler okunamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -110,7 +110,7 @@ namespace DEPO_DURUMU
                 var data = ReportData.FromSaved(report.Id);
                 if (data == null)
                 {
-                    MessageBox.Show(this, "Bu rapor bulunamadı. Liste tazelenecek.", "Depo Durumu",
+                    MessageBox.Show(this, "Bu rapor bulunamadı. Liste tazelenecek.", "Depo Takip",
                         MessageBoxButton.OK, MessageBoxImage.Warning);
                     LoadReports();
                 }
@@ -119,7 +119,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Rapor okunamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Rapor okunamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return null;
             }
@@ -177,7 +177,7 @@ namespace DEPO_DURUMU
             var answer = MessageBox.Show(this,
                 report.Title + "\n" + report.RangeText + " | " + report.RowCount + " kayıt" +
                 "\n\nBu rapor KALICI olarak silinecek (stok, zimmet ve tutanaklar etkilenmez). Onaylıyor musun?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (answer != MessageBoxResult.Yes)
             {
@@ -190,7 +190,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Silinemedi:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Silinemedi:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }

@@ -752,7 +752,7 @@ namespace DEPO_DURUMU
                 "EVET: Depodaki ürünün üzerine yaz (bilgileri ve adedi hurdadaki gibi olur)\n" +
                 "HAYIR: Ayrı, yeni bir ürün olarak getir (bu Seri No boş gelir, sonra doldurabilirsin)\n" +
                 "İPTAL: Bu ürünü geri getirme",
-                "Depo Durumu", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                "Depo Takip", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
 
             if (result == MessageBoxResult.Yes)
             {
@@ -772,14 +772,14 @@ namespace DEPO_DURUMU
             var ids = GetSelectedIds();
             if (ids.Count == 0)
             {
-                MessageBox.Show("Önce geri getirmek istediğin ürünlerin kutucuğunu işaretle.", "Depo Durumu",
+                MessageBox.Show("Önce geri getirmek istediğin ürünlerin kutucuğunu işaretle.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             var result = MessageBox.Show(
                 "Seçili " + ids.Count + " ürün depoya geri getirilecek, onaylıyor musun?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (result != MessageBoxResult.Yes)
             {
@@ -808,7 +808,7 @@ namespace DEPO_DURUMU
                 message += "\n\nGeri getirilemeyen " + errors.Count + " ürün var:\n- " + string.Join("\n- ", errors);
             }
 
-            MessageBox.Show(message, "Depo Durumu", MessageBoxButton.OK,
+            MessageBox.Show(message, "Depo Takip", MessageBoxButton.OK,
                 errors.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
 
             RefreshAfterChange();
@@ -819,14 +819,14 @@ namespace DEPO_DURUMU
             var ids = GetSelectedIds();
             if (ids.Count == 0)
             {
-                MessageBox.Show("Önce silmek istediğin ürünlerin kutucuğunu işaretle.", "Depo Durumu",
+                MessageBox.Show("Önce silmek istediğin ürünlerin kutucuğunu işaretle.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             var result = MessageBox.Show(
                 "Seçili " + ids.Count + " ürün hurdadan KALICI olarak silinecek.\n\nBu işlem geri alınamaz, onaylıyor musun?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result != MessageBoxResult.Yes)
             {

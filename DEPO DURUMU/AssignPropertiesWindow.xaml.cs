@@ -42,7 +42,7 @@ namespace DEPO_DURUMU
             var selected = AvailableList.SelectedItem as PropertyDefinition;
             if (selected == null)
             {
-                MessageBox.Show("Önce sol listeden bir bilgi seçin.", "Depo Durumu",
+                MessageBox.Show("Önce sol listeden bir bilgi seçin.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -57,7 +57,7 @@ namespace DEPO_DURUMU
             var selected = AssignedList.SelectedItem as PropertyDefinition;
             if (selected == null)
             {
-                MessageBox.Show("Önce sağ listeden bir bilgi seçin.", "Depo Durumu",
+                MessageBox.Show("Önce sağ listeden bir bilgi seçin.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -86,7 +86,7 @@ namespace DEPO_DURUMU
             var selected = AssignedList.SelectedItem as PropertyDefinition;
             if (selected == null)
             {
-                MessageBox.Show("Önce sağ listeden bir bilgi seçin.", "Depo Durumu",
+                MessageBox.Show("Önce sağ listeden bir bilgi seçin.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }

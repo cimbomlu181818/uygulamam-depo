@@ -34,7 +34,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Tutanak listesi okunamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Tutanak listesi okunamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 _all = new List<Handover>();
             }
@@ -75,7 +75,7 @@ namespace DEPO_DURUMU
             var selected = HandoversGrid.SelectedItem as Handover;
             if (selected == null)
             {
-                MessageBox.Show(this, "Önce listeden bir tutanak seç.", "Depo Durumu",
+                MessageBox.Show(this, "Önce listeden bir tutanak seç.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
@@ -113,7 +113,7 @@ namespace DEPO_DURUMU
             var current = HandoverRepository.GetById(selected.Id);
             if (current == null)
             {
-                MessageBox.Show(this, "Bu tutanak artık defterde yok.", "Depo Durumu",
+                MessageBox.Show(this, "Bu tutanak artık defterde yok.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 LoadHandovers();
                 return;
@@ -140,7 +140,7 @@ namespace DEPO_DURUMU
                 "No: " + selected.Id + " | " + selected.FromUnit + " -> " + selected.ToUnit + " | " +
                 selected.HandoverDate + "\n" + selected.ItemCount + " kalem: " + selected.ItemsSummary +
                 "\n\nBu tutanak defterden KALICI olarak silinecek (stok ve zimmet etkilenmez). Onaylıyor musun?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (answer != MessageBoxResult.Yes)
             {
@@ -153,7 +153,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Silinemedi:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Silinemedi:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }

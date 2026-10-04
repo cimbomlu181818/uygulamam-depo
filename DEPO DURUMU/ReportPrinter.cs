@@ -149,7 +149,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(owner, "Yazdırılamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(owner, "Yazdırılamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }

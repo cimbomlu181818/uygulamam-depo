@@ -75,11 +75,11 @@ namespace DEPO_DURUMU
 
             if (error != null)
             {
-                MessageBox.Show(error, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(error, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            MessageBox.Show("Ürün depoya geri getirildi.", "Depo Durumu",
+            MessageBox.Show("Ürün depoya geri getirildi.", "Depo Takip",
                 MessageBoxButton.OK, MessageBoxImage.Information);
 
             Changed = true;
@@ -90,7 +90,7 @@ namespace DEPO_DURUMU
         {
             var result = MessageBox.Show(
                 "Bu ürün hurdadan KALICI olarak silinecek.\n\nBu işlem geri alınamaz, onaylıyor musun?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (result != MessageBoxResult.Yes)
             {

@@ -19,7 +19,7 @@ namespace DEPO_DURUMU
             _assignment = AssignmentRepository.GetById(assignmentId);
             if (_assignment == null)
             {
-                MessageBox.Show("Zimmet kaydı bulunamadı (silinmiş olabilir).", "Depo Durumu",
+                MessageBox.Show("Zimmet kaydı bulunamadı (silinmiş olabilir).", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 Loaded += (s, e) => Close();
                 return;
@@ -102,7 +102,7 @@ namespace DEPO_DURUMU
             {
                 var answer = MessageBox.Show(this,
                     "İade tarihi zimmet tarihinden önce görünüyor. Yine de kaydedilsin mi?",
-                    "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
                 if (answer != MessageBoxResult.Yes)
                 {
@@ -134,7 +134,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, ex.Message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, ex.Message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -143,7 +143,7 @@ namespace DEPO_DURUMU
 
         private void Warn(string message)
         {
-            MessageBox.Show(this, message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 }

@@ -44,11 +44,11 @@ namespace DEPO_DURUMU
             {
                 MessageBox.Show(owner,
                     "Dosya yazılamadı: " + ex.Message + "\n\nDosya Excel'de açıksa kapatıp tekrar dene.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
 
-            MessageBox.Show(owner, "Rapor Excel olarak kaydedildi:\n" + dialog.FileName, "Depo Durumu",
+            MessageBox.Show(owner, "Rapor Excel olarak kaydedildi:\n" + dialog.FileName, "Depo Takip",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return true;
         }

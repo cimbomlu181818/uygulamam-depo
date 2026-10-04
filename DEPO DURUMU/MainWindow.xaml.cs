@@ -693,7 +693,7 @@ namespace DEPO_DURUMU
 
             if (toDelete.Count == 0)
             {
-                MessageBox.Show("Önce silmek istediğin ürünlerin kutucuğunu işaretle.", "Depo Durumu",
+                MessageBox.Show("Önce silmek istediğin ürünlerin kutucuğunu işaretle.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -719,7 +719,7 @@ namespace DEPO_DURUMU
                 MessageBox.Show(
                     assignedToSkip.Count + " ürün zimmette olduğu için silinemez, atlanacak. " +
                     "Önce Zimmetler ekranından iade alın.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
 
                 toDelete = toDelete.Where(id => !assignedToSkip.Contains(id)).ToList();
 
@@ -732,7 +732,7 @@ namespace DEPO_DURUMU
 
             var result = MessageBox.Show(
                 "Seçili " + toDelete.Count + " ürün silinecek, onaylıyor musun?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (result != MessageBoxResult.Yes)
             {
@@ -1041,7 +1041,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception)
             {
-                MessageBox.Show("Panoya yazılamadı, tekrar dene.", "Depo Durumu",
+                MessageBox.Show("Panoya yazılamadı, tekrar dene.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -1069,7 +1069,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception)
             {
-                MessageBox.Show("Panodan okunamadı, tekrar dene.", "Depo Durumu",
+                MessageBox.Show("Panodan okunamadı, tekrar dene.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -1080,7 +1080,7 @@ namespace DEPO_DURUMU
             if (text.Contains("\n") || text.Contains("\t"))
             {
                 MessageBox.Show("Birden fazla hücre kopyalanmış. Bir hücreye sadece tek hücre yapıştırılabilir.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -1098,7 +1098,7 @@ namespace DEPO_DURUMU
                 else
                 {
                     MessageBox.Show("Bu sütuna sadece \"Evet\" veya \"Hayır\" yapıştırılabilir.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -1117,7 +1117,7 @@ namespace DEPO_DURUMU
                 {
                     MessageBox.Show(
                         "\"" + property.Name + "\" için \"" + text + "\" değeri zaten başka bir üründe kullanılıyor.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -1125,7 +1125,7 @@ namespace DEPO_DURUMU
                 {
                     MessageBox.Show(
                         "\"" + property.Name + "\" için \"" + text + "\" değeri hurdadaki bir üründe kullanılıyor.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }
@@ -1182,7 +1182,7 @@ namespace DEPO_DURUMU
                         assigned.Count == 1
                             ? "Bu ürün zimmette olduğu için kesilemez. İstersen kopyalayabilirsin."
                             : assigned.Count + " ürün zimmette olduğu için kesilemez, atlanacak.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
 
                     ids = ids.Where(id => !assigned.Contains(id)).ToList();
                     if (ids.Count == 0)
@@ -1215,7 +1215,7 @@ namespace DEPO_DURUMU
             {
                 MessageBox.Show(
                     "Kopyalanan satır bu ürün grubunda değil. Şimdilik satırlar sadece aynı grubun içinde yapıştırılabilir.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -1437,7 +1437,7 @@ namespace DEPO_DURUMU
             if (problem != null)
             {
                 MessageBox.Show(problem + "\n\n\"" + entry.Title + "\" işlemi " + failText + " ve listeden çıkarıldı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
                 RefreshAfterHistory(entry);
                 return false;
             }
@@ -2112,7 +2112,7 @@ namespace DEPO_DURUMU
                     productIds.Count == 1
                         ? "Bu ürünün tamamı zaten zimmette."
                         : "Seçili ürünlerin tamamı zaten zimmette.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
@@ -2120,7 +2120,7 @@ namespace DEPO_DURUMU
             {
                 MessageBox.Show(
                     skipped + " ürünün tamamı zaten zimmette olduğu için atlanacak.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             AssignWindow window;
@@ -2211,7 +2211,7 @@ namespace DEPO_DURUMU
 
             if (toMove.Count == 0)
             {
-                MessageBox.Show("Önce hurdaya taşımak istediğin ürünlerin kutucuğunu işaretle.", "Depo Durumu",
+                MessageBox.Show("Önce hurdaya taşımak istediğin ürünlerin kutucuğunu işaretle.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -2219,7 +2219,7 @@ namespace DEPO_DURUMU
             var result = MessageBox.Show(
                 "Seçili " + toMove.Count + " ürün hurdaya taşınacak, onaylıyor musun?\n\n" +
                 "Hurdaya taşınan ürünler depodan kaldırılır ama silinmez; Hurda ekranından istediğin zaman geri getirebilirsin.",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Question);
 
             if (result != MessageBoxResult.Yes)
             {
@@ -2250,7 +2250,7 @@ namespace DEPO_DURUMU
                 }
                 catch (InvalidOperationException ex)
                 {
-                    MessageBox.Show(ex.Message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    MessageBox.Show(ex.Message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
             }
 
@@ -2259,7 +2259,7 @@ namespace DEPO_DURUMU
                 MessageBox.Show(
                     skippedAssigned + " ürün zimmette olduğu için hurdaya taşınmadı. " +
                     "Önce Zimmetler ekranından iade alın.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
             }
 
             LoadProductGrid(_currentType);
@@ -2300,7 +2300,7 @@ namespace DEPO_DURUMU
                 }
 
                 MessageBox.Show("1 ile " + available + " arasında bir sayı yaz.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
         }
 
@@ -2345,7 +2345,7 @@ namespace DEPO_DURUMU
 
             LogRepository.Add(_currentType.Name, view.Count + " satır", "Dışa aktarıldı");
 
-            MessageBox.Show(view.Count + " ürün dışa aktarıldı.", "Depo Durumu",
+            MessageBox.Show(view.Count + " ürün dışa aktarıldı.", "Depo Takip",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -2429,7 +2429,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Durumu",
+                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -2437,7 +2437,7 @@ namespace DEPO_DURUMU
             if (rows.Count < 2)
             {
                 MessageBox.Show("Dosyada, başlık satırından sonra en az bir veri satırı olmalı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -2505,7 +2505,7 @@ namespace DEPO_DURUMU
             {
                 message += "\n\nZaten kullanılan seri no olduğu için eklenmeyenler: " + string.Join(", ", skipped);
             }
-            MessageBox.Show(message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
 
             LoadProductGrid(_currentType);
         }
@@ -2587,7 +2587,7 @@ namespace DEPO_DURUMU
             {
                 Title = "Yedek Al",
                 FileName = "depostok_yedek_" + DateTime.Now.ToString("yyyyMMdd_HHmm") + ".db",
-                Filter = "Depo Durumu yedek dosyası (*.db)|*.db"
+                Filter = "Depo Takip yedek dosyası (*.db)|*.db"
             };
 
             if (dialog.ShowDialog() != true)
@@ -2599,12 +2599,12 @@ namespace DEPO_DURUMU
             {
                 BackupService.CreateBackup(dialog.FileName);
                 LogRepository.Add(null, System.IO.Path.GetFileName(dialog.FileName), "Yedek alındı");
-                MessageBox.Show("Yedek başarıyla alındı.", "Depo Durumu",
+                MessageBox.Show("Yedek başarıyla alındı.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Yedek alınamadı: " + ex.Message, "Depo Durumu",
+                MessageBox.Show("Yedek alınamadı: " + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
@@ -2614,7 +2614,7 @@ namespace DEPO_DURUMU
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Yedekten Geri Yükle",
-                Filter = "Depo Durumu yedek dosyası (*.db)|*.db"
+                Filter = "Depo Takip yedek dosyası (*.db)|*.db"
             };
 
             if (dialog.ShowDialog() != true)
@@ -2626,7 +2626,7 @@ namespace DEPO_DURUMU
                 "Şu anki veriler, seçtiğin yedeğin üzerine yazılacak (bu işlemden önceki hâli ayrıca " +
                 "güvenlik kopyası olarak saklanır). Devam etmeden önce programı kapatıp yeniden açman " +
                 "gerekecek. Devam edilsin mi?",
-                "Depo Durumu", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                "Depo Takip", MessageBoxButton.YesNo, MessageBoxImage.Warning);
 
             if (confirm != MessageBoxResult.Yes)
             {
@@ -2639,11 +2639,11 @@ namespace DEPO_DURUMU
                 ClearUndoHistory();
                 MessageBox.Show(
                     "Yedek geri yüklendi. Değişikliklerin görünmesi için programı şimdi kapatıp yeniden aç.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Geri yükleme başarısız: " + ex.Message, "Depo Durumu",
+                MessageBox.Show("Geri yükleme başarısız: " + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }

@@ -154,7 +154,7 @@ namespace DEPO_DURUMU
             var name = NewTypeNameBox.Text.Trim();
             if (string.IsNullOrEmpty(name))
             {
-                MessageBox.Show("Lütfen bir ürün grubu adı yazın.", "Depo Durumu",
+                MessageBox.Show("Lütfen bir ürün grubu adı yazın.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -166,7 +166,7 @@ namespace DEPO_DURUMU
                 string.Compare(n, name, turkish, CompareOptions.IgnoreCase) == 0);
             if (typeExists)
             {
-                MessageBox.Show("Bu ürün grubu zaten var.", "Depo Durumu",
+                MessageBox.Show("Bu ürün grubu zaten var.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -196,7 +196,7 @@ namespace DEPO_DURUMU
             var selected = TypeList.SelectedItem as TypeRow;
             if (selected == null)
             {
-                MessageBox.Show("Önce listeden bir ürün grubu seçin (adına tıklayın).", "Depo Durumu",
+                MessageBox.Show("Önce listeden bir ürün grubu seçin (adına tıklayın).", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -222,7 +222,7 @@ namespace DEPO_DURUMU
 
             if (selected.Count == 0)
             {
-                MessageBox.Show("Önce silmek istediğin grupları işaretle.", "Depo Durumu",
+                MessageBox.Show("Önce silmek istediğin grupları işaretle.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -258,7 +258,7 @@ namespace DEPO_DURUMU
             question.AppendLine();
             question.AppendLine("Devam edilsin mi?");
 
-            var answer = MessageBox.Show(this, question.ToString(), "Depo Durumu",
+            var answer = MessageBox.Show(this, question.ToString(), "Depo Takip",
                 MessageBoxButton.YesNo,
                 alsoProducts && totalProducts > 0 ? MessageBoxImage.Warning : MessageBoxImage.Question,
                 MessageBoxResult.No);
@@ -328,7 +328,7 @@ namespace DEPO_DURUMU
             {
                 MessageBox.Show(this,
                     "Silme işlemi tamamlanamadı; hiçbir şey silinmedi.\n\nNeden: " + ex.Message,
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Error);
                 LoadTypes(false);
                 return;
             }
@@ -365,7 +365,7 @@ namespace DEPO_DURUMU
                 }
             }
 
-            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Durumu",
+            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Takip",
                 MessageBoxButton.OK, skipped.Count > 0 ? MessageBoxImage.Warning : MessageBoxImage.Information);
 
             DeleteProductsCheck.IsChecked = false;   // kazara tekrar tehlikeli silme olmasın

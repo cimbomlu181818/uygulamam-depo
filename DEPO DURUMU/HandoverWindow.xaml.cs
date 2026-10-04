@@ -604,7 +604,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Deftere kaydedilemedi:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Deftere kaydedilemedi:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
@@ -620,7 +620,7 @@ namespace DEPO_DURUMU
 
             if (SaveToLedger(handover))
             {
-                MessageBox.Show(this, "Tutanak deftere kaydedildi (No: " + _handoverId + ").", "Depo Durumu",
+                MessageBox.Show(this, "Tutanak deftere kaydedildi (No: " + _handoverId + ").", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
@@ -649,7 +649,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Yazdırılamadı (deftere kaydedilmedi):\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Yazdırılamadı (deftere kaydedilmedi):\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -797,7 +797,7 @@ namespace DEPO_DURUMU
 
         private void ShowWarning(string message)
         {
-            MessageBox.Show(this, message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

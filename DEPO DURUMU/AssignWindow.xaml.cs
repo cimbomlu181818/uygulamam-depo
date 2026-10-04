@@ -199,7 +199,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Tutanak hazırlanamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Tutanak hazırlanamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -250,7 +250,7 @@ namespace DEPO_DURUMU
                     ? "\n\nBundan önce " + savedCount + " ürün zimmetlendi (Zimmetler ekranından görebilirsin)."
                     : "";
 
-                MessageBox.Show(owner, "Zimmetlenemedi:\n" + ex.Message + extra, "Depo Durumu",
+                MessageBox.Show(owner, "Zimmetlenemedi:\n" + ex.Message + extra, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
 
                 if (savedCount == 0)
@@ -269,7 +269,7 @@ namespace DEPO_DURUMU
 
         private void ShowWarning(string message)
         {
-            MessageBox.Show(this, message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 }

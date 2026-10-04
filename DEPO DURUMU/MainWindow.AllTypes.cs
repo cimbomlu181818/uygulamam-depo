@@ -163,14 +163,14 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Dosya yazılamadı: " + ex.Message, "Depo Durumu",
+                MessageBox.Show("Dosya yazılamadı: " + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             LogRepository.Add(null, count + " satır", "Dışa aktarıldı");
 
-            MessageBox.Show(count + " ürün dışa aktarıldı.", "Depo Durumu",
+            MessageBox.Show(count + " ürün dışa aktarıldı.", "Depo Takip",
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
@@ -225,14 +225,14 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Veriler okunamadı: " + ex.Message, "Depo Durumu",
+                MessageBox.Show("Veriler okunamadı: " + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             if (depotCount + scrapCount == 0)
             {
-                MessageBox.Show("Dışa aktarılacak ürün yok.", "Depo Durumu",
+                MessageBox.Show("Dışa aktarılacak ürün yok.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -256,7 +256,7 @@ namespace DEPO_DURUMU
             catch (Exception ex)
             {
                 MessageBox.Show("Dosya yazılamadı: " + ex.Message + "\n\nDosya Excel'de açıksa kapatıp tekrar dene.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -284,7 +284,7 @@ namespace DEPO_DURUMU
                 message = scrapCount + " hurda ürünü dışa aktarıldı.";
             }
 
-            MessageBox.Show(message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>Depodaki tüm ürünler: Grup, Sıra No, özellikler..., Adet.</summary>
@@ -632,7 +632,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Durumu",
+                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -645,7 +645,7 @@ namespace DEPO_DURUMU
             if (rows.Count < 1)
             {
                 MessageBox.Show("Dosyada okunacak satır bulunamadı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -677,7 +677,7 @@ namespace DEPO_DURUMU
             if (plans.Count == 0)
             {
                 MessageBox.Show("Dosyada eklenecek ürün satırı bulunamadı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -695,7 +695,7 @@ namespace DEPO_DURUMU
             {
                 MessageBox.Show(this,
                     "İçe aktarma tamamlanamadı; hiçbir değişiklik yapılmadı.\n\nNeden: " + result.Failure,
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -740,7 +740,7 @@ namespace DEPO_DURUMU
                 message.AppendLine();
                 message.AppendLine("Yok sayılan sütunlar: " + JoinLimited(ignoredColumns, 10));
             }
-            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Durumu",
+            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Takip",
                 MessageBoxButton.OK, MessageBoxImage.Information);
 
             if (TypePage.Visibility == Visibility.Visible && _currentType != null)
@@ -2139,7 +2139,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Durumu",
+                MessageBox.Show("Dosya okunamadı: " + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
@@ -2152,7 +2152,7 @@ namespace DEPO_DURUMU
             if (rows.Count < 1)
             {
                 MessageBox.Show("Dosyada okunacak satır bulunamadı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -2237,7 +2237,7 @@ namespace DEPO_DURUMU
             if (items.Count == 0)
             {
                 MessageBox.Show("Hurdaya eklenecek ürün satırı bulunamadı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -2258,7 +2258,7 @@ namespace DEPO_DURUMU
             summary.AppendLine("Gerçek depoya hiçbir şey eklenmez ve değişmez.");
             summary.AppendLine("Devam edilsin mi?");
 
-            if (MessageBox.Show(this, summary.ToString().TrimEnd(), "Depo Durumu",
+            if (MessageBox.Show(this, summary.ToString().TrimEnd(), "Depo Takip",
                     MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
             {
                 return;
@@ -2353,7 +2353,7 @@ namespace DEPO_DURUMU
             {
                 MessageBox.Show(this,
                     "Hurdaya içe aktarma tamamlanamadı; hiçbir değişiklik yapılmadı.\n\nNeden: " + failure,
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
@@ -2379,7 +2379,7 @@ namespace DEPO_DURUMU
                 message.AppendLine();
                 message.AppendLine("Yok sayılan sütunlar: " + JoinLimited(ignoredColumns, 10));
             }
-            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Durumu",
+            MessageBox.Show(this, message.ToString().TrimEnd(), "Depo Takip",
                 MessageBoxButton.OK, MessageBoxImage.Information);
 
             if (TypePage.Visibility == Visibility.Visible && _currentType != null)
@@ -3109,7 +3109,7 @@ namespace DEPO_DURUMU
             var chosenSystem = -1;
 
             Action<string> warn = text =>
-                MessageBox.Show(window, text, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(window, text, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
 
             okButton.Click += delegate
             {
@@ -3720,7 +3720,7 @@ namespace DEPO_DURUMU
                 {
                     MessageBox.Show(dialog,
                         "Bir grup adı yaz ya da geri gidip grup sütununu belirle.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 

@@ -46,7 +46,7 @@ namespace DEPO_DURUMU
                 MessageBox.Show(this,
                     "Sıfırlama tamamlanamadı.\n\nNeden: " + ex.Message +
                     (backupPath != null ? "\n\nGüvenlik yedeği şurada duruyor:\n" + backupPath : ""),
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Error);
 
                 try
                 {
@@ -72,7 +72,7 @@ namespace DEPO_DURUMU
                            "(sonra programı kapatıp yeniden aç). Artık gerekmiyorsa dosyayı silebilirsin.";
             }
 
-            MessageBox.Show(this, message, "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, message, "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Information);
         }
 
         /// <summary>Bütün tabloları boşaltır ve varsayılanları yeniden kurar.</summary>

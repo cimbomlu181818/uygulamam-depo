@@ -9,13 +9,26 @@ namespace DEPO_DURUMU.Data
 {
     /// <summary>
     /// SQLite veritabanı dosyasını oluşturur ve bağlantı açar.
-    /// Veritabanı, programın bulunduğu klasördeki "Veri" klasöründe tutulur.
+    /// Veritabanı, Belgelerim\Depo Takip\Veri klasöründe tutulur.
     /// </summary>
     public static class Database
     {
+        /// <summary>
+        /// Programın tüm dosyalarının durduğu ana klasör: Belgelerim\Depo Takip.
+        /// Program nereye kurulursa kurulsun burası her zaman yazılabilirdir.
+        /// </summary>
+        public static string RootFolder
+        {
+            get
+            {
+                return Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Depo Takip");
+            }
+        }
+
         public static string DataFolder
         {
-            get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Veri"); }
+            get { return Path.Combine(RootFolder, "Veri"); }
         }
 
         public static string DatabasePath
@@ -39,10 +52,54 @@ namespace DEPO_DURUMU.Data
         }
 
         /// <summary>
+        /// Eski sürümde veritabanı programın yanındaki "Veri" klasöründeydi. Yeni konumda veritabanı
+        /// yoksa ve eski konumda varsa, veriler (ve eski yedekler) yeni konuma KOPYALANIR.
+        /// Eski dosyalara dokunulmaz; kopyalama yarıda kesilirse bir sonraki açılışta yeniden denenir.
+        /// </summary>
+        private static void CopyOldDataIfNeeded()
+        {
+            var oldData = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Veri");
+            var oldBackup = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Yedek");
+
+            if (File.Exists(DatabasePath) || !File.Exists(Path.Combine(oldData, "depostok.db")))
+            {
+                return;
+            }
+
+            CopyFolderFiles(oldData, DataFolder);
+            CopyFolderFiles(oldBackup, BackupService.AutoBackupFolder);
+        }
+
+        private static void CopyFolderFiles(string fromFolder, string toFolder)
+        {
+            if (!Directory.Exists(fromFolder))
+            {
+                return;
+            }
+
+            Directory.CreateDirectory(toFolder);
+
+            foreach (var file in Directory.GetFiles(fromFolder))
+            {
+                var target = Path.Combine(toFolder, Path.GetFileName(file));
+                if (File.Exists(target))
+                {
+                    continue;
+                }
+
+                // Önce geçici ada kopyalanır; yarım kalan dosya asıl ad olarak görünmesin.
+                var temp = target + ".tmp";
+                File.Copy(file, temp, true);
+                File.Move(temp, target);
+            }
+        }
+
+        /// <summary>
         /// Klasörü ve tabloları oluşturur. Zaten varsa hiçbir şeyi silmez veya bozmaz.
         /// </summary>
         public static void Initialize()
         {
+            CopyOldDataIfNeeded();
             Directory.CreateDirectory(DataFolder);
 
             using (var connection = OpenConnection())

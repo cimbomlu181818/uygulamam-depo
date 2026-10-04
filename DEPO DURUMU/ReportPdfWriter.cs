@@ -51,11 +51,11 @@ namespace DEPO_DURUMU
             {
                 MessageBox.Show(owner,
                     "PDF yazılamadı: " + ex.Message + "\n\nDosya başka bir programda açıksa kapatıp tekrar dene.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Error);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
 
-            MessageBox.Show(owner, "Rapor PDF olarak kaydedildi:\n" + dialog.FileName, "Depo Durumu",
+            MessageBox.Show(owner, "Rapor PDF olarak kaydedildi:\n" + dialog.FileName, "Depo Takip",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             return true;
         }
@@ -81,7 +81,7 @@ namespace DEPO_DURUMU
         {
             var document = new PdfDocument();
             document.Info.Title = string.IsNullOrWhiteSpace(data.Title) ? "İşlem Raporu" : data.Title;
-            document.Info.Creator = "Depo Durumu";
+            document.Info.Creator = "Depo Takip";
 
             var titleFont = new XFont(FontName, 16, XFontStyleEx.Bold);
             var boldFont = new XFont(FontName, 9, XFontStyleEx.Bold);

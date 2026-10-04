@@ -29,7 +29,7 @@ namespace DEPO_DURUMU
 
             if (type == null || property == null)
             {
-                MessageBox.Show("Önce bir ürün grubu ve bilgi seç.", "Depo Durumu",
+                MessageBox.Show("Önce bir ürün grubu ve bilgi seç.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }

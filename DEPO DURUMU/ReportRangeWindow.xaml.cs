@@ -65,7 +65,7 @@ namespace DEPO_DURUMU
 
             if (to < from)
             {
-                MessageBox.Show(this, "Bitiş, başlangıçtan önce olamaz.", "Depo Durumu",
+                MessageBox.Show(this, "Bitiş, başlangıçtan önce olamaz.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
@@ -82,7 +82,7 @@ namespace DEPO_DURUMU
 
             if (picker.SelectedDate == null)
             {
-                MessageBox.Show(this, label + " tarihini seç.", "Depo Durumu",
+                MessageBox.Show(this, label + " tarihini seç.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 picker.Focus();
                 return false;
@@ -92,7 +92,7 @@ namespace DEPO_DURUMU
             if (!DateTime.TryParseExact((timeBox.Text ?? "").Trim(), TimeFormats, CultureInfo.InvariantCulture,
                     DateTimeStyles.None, out time))
             {
-                MessageBox.Show(this, label + " saatini 24 saatlik yaz (örnek 08:30).", "Depo Durumu",
+                MessageBox.Show(this, label + " saatini 24 saatlik yaz (örnek 08:30).", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
                 timeBox.Focus();
                 timeBox.SelectAll();

@@ -73,7 +73,7 @@ namespace DEPO_DURUMU
             if (!int.TryParse(_quantityBox.Text.Trim(), out quantity) || quantity < 1)
             {
                 MessageBox.Show("Adet, 1 veya daha büyük bir tam sayı olmalı.",
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
@@ -96,7 +96,7 @@ namespace DEPO_DURUMU
                 {
                     MessageBox.Show(
                         "\"" + property.Name + "\" için girilen \"" + value + "\" değeri zaten başka bir üründe kullanılıyor.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -104,7 +104,7 @@ namespace DEPO_DURUMU
                 {
                     MessageBox.Show(
                         "\"" + property.Name + "\" için girilen \"" + value + "\" değeri hurdadaki bir üründe kullanılıyor.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }

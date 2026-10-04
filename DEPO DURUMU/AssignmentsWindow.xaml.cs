@@ -42,7 +42,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Zimmet listesi okunamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Zimmet listesi okunamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 _all = new List<Assignment>();
             }
@@ -158,7 +158,7 @@ namespace DEPO_DURUMU
             var row = AssignmentsGrid.SelectedItem as AssignmentRow;
             if (row == null)
             {
-                MessageBox.Show(this, "Önce listeden bir kayıt seç.", "Depo Durumu",
+                MessageBox.Show(this, "Önce listeden bir kayıt seç.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return null;
             }
@@ -226,7 +226,7 @@ namespace DEPO_DURUMU
 
                 if (active.Count == 0)
                 {
-                    MessageBox.Show(this, "İşaretli kayıtların hepsi zaten iade alınmış.", "Depo Durumu",
+                    MessageBox.Show(this, "İşaretli kayıtların hepsi zaten iade alınmış.", "Depo Takip",
                         MessageBoxButton.OK, MessageBoxImage.Information);
                     return;
                 }
@@ -243,7 +243,7 @@ namespace DEPO_DURUMU
 
             if (selected.IsReturned)
             {
-                MessageBox.Show(this, "Bu zimmet zaten iade alınmış.", "Depo Durumu",
+                MessageBox.Show(this, "Bu zimmet zaten iade alınmış.", "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
@@ -338,7 +338,7 @@ namespace DEPO_DURUMU
                 MessageBox.Show(owner,
                     done.Count + " zimmet iade alındı, " + failed.Count + " kayıt alınamadı:\n\n" +
                     string.Join("\n", failed.Take(8)),
-                    "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
 
             if (done.Count == 0)
@@ -391,7 +391,7 @@ namespace DEPO_DURUMU
                         (people.Count > 8 ? "\n... ve " + (people.Count - 8) + " kişi daha" : "") +
                         "\n\nToplu tutanak sadece aynı kişiye ait kayıtlar için çıkarılır. " +
                         "Lütfen aynı kişiye ait kayıtları işaretleyip tekrar dene.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
@@ -401,7 +401,7 @@ namespace DEPO_DURUMU
                         "İşaretli kayıtların bir kısmı zimmette, bir kısmı iade edilmiş.\n\n" +
                         "Zimmet tutanağı ile iade tutanağı birlikte çıkarılamaz. " +
                         "Sadece zimmetteki ya da sadece iade edilmiş kayıtları işaretleyip tekrar dene.",
-                        "Depo Durumu", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        "Depo Takip", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
             }

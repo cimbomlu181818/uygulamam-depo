@@ -78,7 +78,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "İşlemler okunamadı:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "İşlemler okunamadı:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
 

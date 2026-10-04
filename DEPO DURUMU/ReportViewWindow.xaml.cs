@@ -41,7 +41,7 @@ namespace DEPO_DURUMU
             }
             catch (Exception ex)
             {
-                MessageBox.Show(this, "Rapor kaydedilemedi:\n" + ex.Message, "Depo Durumu",
+                MessageBox.Show(this, "Rapor kaydedilemedi:\n" + ex.Message, "Depo Takip",
                     MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
