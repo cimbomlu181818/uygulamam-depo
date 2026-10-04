@@ -83,6 +83,18 @@
       <DependentUpon>ColorSettingsWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="Data\BackupService.cs" />
+    <Compile Include="Data\NoteFormula.cs" />
+    <Compile Include="Data\NoteRepository.cs" />
+    <Compile Include="Data\NoteSheet.cs" />
+    <Compile Include="NoteFilterWindow.xaml.cs">
+      <DependentUpon>NoteFilterWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="NotesWindow.xaml.cs">
+      <DependentUpon>NotesWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="MainWindow.Notes.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Data\ColorRepository.cs" />
     <Compile Include="Data\DynamicFieldFactory.cs" />
     <Compile Include="HandoverWindow.xaml.cs">
@@ -155,6 +167,14 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="LogWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="NoteFilterWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="NotesWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

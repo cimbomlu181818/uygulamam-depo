@@ -423,6 +423,17 @@ CREATE TABLE IF NOT EXISTS HandoverItems (
     Quantity     TEXT,
     Note         TEXT
 );
+-- Notlar defteri: Excel benzeri sayfalar. Her sayfa tek satırdır; hücreler Data sütununda tek metin olarak durur.
+CREATE TABLE IF NOT EXISTS NoteSheets (
+    Id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    Name          TEXT    NOT NULL,
+    SortOrder     INTEGER NOT NULL DEFAULT 0,
+    ColumnCount   INTEGER NOT NULL DEFAULT 20,
+    ColumnWidths  TEXT,
+    Data          TEXT,
+    UpdatedAt     TEXT
+);
+
 ";
     }
 }

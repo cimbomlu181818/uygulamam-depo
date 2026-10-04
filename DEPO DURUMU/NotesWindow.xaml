@@ -1,0 +1,191 @@
+﻿<Window x:Class="DEPO_DURUMU.NotesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Notlar"
+        Height="620" Width="1020"
+        MinHeight="420" MinWidth="680"
+        WindowStartupLocation="CenterOwner"
+        Closing="Window_Closing">
+
+    <DockPanel>
+
+        <!-- EN ALT: seçili hücrelerin toplamı / ortalaması / adedi -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#F3F3F3"
+                BorderBrush="#D0D0D0"
+                BorderThickness="0,1,0,0"
+                Padding="8,4">
+            <TextBlock x:Name="StatusText" Foreground="#444444" />
+        </Border>
+
+        <!-- ALT: sayfa sekmeleri ve en sağda + düğmesi -->
+        <Border DockPanel.Dock="Bottom"
+                Background="#E9E9E9"
+                BorderBrush="#C8C8C8"
+                BorderThickness="0,1,0,0">
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="TabsPanel"
+                            Orientation="Horizontal"
+                            Margin="6,3,6,0" />
+            </ScrollViewer>
+        </Border>
+
+        <!-- ÜST: araç çubuğu -->
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Margin="8,8,8,6">
+            <Button x:Name="UndoButton"
+                    Content="Geri Al"
+                    Width="80" Height="26"
+                    Margin="0,0,6,0"
+                    ToolTip="Ctrl+Z"
+                    Click="UndoButton_Click" />
+            <Button x:Name="RedoButton"
+                    Content="İleri Al"
+                    Width="80" Height="26"
+                    Margin="0,0,16,0"
+                    ToolTip="Ctrl+Y"
+                    Click="RedoButton_Click" />
+            <Button x:Name="ClearFiltersButton"
+                    Content="Filtreleri Temizle"
+                    Width="120" Height="26"
+                    Click="ClearFiltersButton_Click" />
+            <TextBlock Text="Formüller: TOPLA, ORTALAMA, MIN, MAKS, SAY, EĞER, YUVARLA, MUTLAK, ÇARPIM, KAREKÖK, BİRLEŞTİR   (ayraç: ;)"
+                       Foreground="Gray"
+                       VerticalAlignment="Center"
+                       Margin="16,0,0,0" />
+        </StackPanel>
+
+        <!-- FORMÜL ÇUBUĞU: solda hücre adresi (Ad kutusu), sağda seçili hücrenin içeriği ya da formülü -->
+        <Grid DockPanel.Dock="Top"
+              Margin="8,0,8,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <TextBox x:Name="NameBox"
+                     Grid.Column="0"
+                     Height="26"
+                     VerticalContentAlignment="Center"
+                     ToolTip="Hücre adresi. D15 yazıp Enter'a basınca oraya gider, A1:C5 yazarsan aralığı seçer."
+                     GotKeyboardFocus="NameBox_GotKeyboardFocus"
+                     PreviewKeyDown="NameBox_PreviewKeyDown" />
+
+            <TextBlock Grid.Column="1"
+                       Text="fx"
+                       FontStyle="Italic"
+                       FontWeight="SemiBold"
+                       Foreground="#555555"
+                       VerticalAlignment="Center"
+                       Margin="10,0,8,0" />
+
+            <TextBox x:Name="FormulaBox"
+                     Grid.Column="2"
+                     Height="26"
+                     VerticalContentAlignment="Center"
+                     IsEnabled="False"
+                     ToolTip="Seçili hücrenin içeriği. Enter hücreye işler, Esc vazgeçer."
+                     TextChanged="FormulaBox_TextChanged"
+                     GotKeyboardFocus="FormulaBox_GotKeyboardFocus"
+                     LostKeyboardFocus="FormulaBox_LostKeyboardFocus"
+                     PreviewKeyDown="FormulaBox_PreviewKeyDown" />
+        </Grid>
+
+        <!-- ORTA: Excel benzeri tablo -->
+        <DataGrid x:Name="SheetGrid"
+                  AutoGenerateColumns="False"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  CanUserSortColumns="False"
+                  CanUserReorderColumns="False"
+                  CanUserResizeColumns="True"
+                  CanUserResizeRows="False"
+                  SelectionMode="Extended"
+                  SelectionUnit="CellOrRowHeader"
+                  HeadersVisibility="All"
+                  GridLinesVisibility="All"
+                  HorizontalGridLinesBrush="#D4D4D4"
+                  VerticalGridLinesBrush="#D4D4D4"
+                  RowHeaderWidth="44"
+                  RowHeight="22"
+                  ColumnWidth="90"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  ClipboardCopyMode="None"
+                  Background="White"
+                  PreviewKeyDown="SheetGrid_PreviewKeyDown"
+                  PreviewMouseRightButtonDown="SheetGrid_PreviewMouseRightButtonDown"
+                  SelectedCellsChanged="SheetGrid_SelectedCellsChanged"
+                  CurrentCellChanged="SheetGrid_CurrentCellChanged"
+                  PreparingCellForEdit="SheetGrid_PreparingCellForEdit"
+                  CellEditEnding="SheetGrid_CellEditEnding"
+                  PreviewMouseLeftButtonDown="SheetGrid_PreviewMouseLeftButtonDown"
+                  PreviewMouseMove="SheetGrid_PreviewMouseMove"
+                  PreviewMouseLeftButtonUp="SheetGrid_PreviewMouseLeftButtonUp">
+
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Foreground" Value="#444444" />
+                    <Setter Property="Background" Value="#F0F0F0" />
+                    <Setter Property="BorderBrush" Value="#D0D0D0" />
+                    <Setter Property="BorderThickness" Value="0,0,1,1" />
+                    <Setter Property="Height" Value="24" />
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+
+            <DataGrid.RowHeaderStyle>
+                <Style TargetType="DataGridRowHeader">
+                    <Setter Property="HorizontalContentAlignment" Value="Center" />
+                    <Setter Property="Background" Value="#F0F0F0" />
+                    <Setter Property="BorderBrush" Value="#D0D0D0" />
+                    <Setter Property="BorderThickness" Value="0,0,1,1" />
+                </Style>
+            </DataGrid.RowHeaderStyle>
+
+            <DataGrid.RowHeaderTemplate>
+                <DataTemplate>
+                    <TextBlock Text="{Binding RelativeSource={RelativeSource AncestorType={x:Type DataGridRow}}, Path=Item.Number}"
+                               Foreground="#555555"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </DataTemplate>
+            </DataGrid.RowHeaderTemplate>
+
+            <!-- 1. satır başlık satırıdır: hafif renkli ve kalın, her hücresinde filtre oku var -->
+            <DataGrid.RowStyle>
+                <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsHeader}" Value="True">
+                            <Setter Property="Background" Value="#EAF1FB" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.RowStyle>
+
+            <DataGrid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="Kes" InputGestureText="Ctrl+X" Click="CutMenu_Click" />
+                    <MenuItem Header="Kopyala" InputGestureText="Ctrl+C" Click="CopyMenu_Click" />
+                    <MenuItem Header="Yapıştır" InputGestureText="Ctrl+V" Click="PasteMenu_Click" />
+                    <MenuItem Header="İçeriği Temizle" InputGestureText="Del" Click="ClearMenu_Click" />
+                    <Separator />
+                    <MenuItem Header="Üste satır ekle" Click="InsertRowAboveMenu_Click" />
+                    <MenuItem Header="Alta satır ekle" Click="InsertRowBelowMenu_Click" />
+                    <MenuItem Header="Seçili satırları sil" Click="DeleteRowsMenu_Click" />
+                    <Separator />
+                    <MenuItem Header="Sola sütun ekle" Click="InsertColumnLeftMenu_Click" />
+                    <MenuItem Header="Sağa sütun ekle" Click="InsertColumnRightMenu_Click" />
+                    <MenuItem Header="Seçili sütunları sil" Click="DeleteColumnsMenu_Click" />
+                </ContextMenu>
+            </DataGrid.ContextMenu>
+
+        </DataGrid>
+
+    </DockPanel>
+</Window>
