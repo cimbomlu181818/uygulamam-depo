@@ -1,0 +1,76 @@
+﻿<Window x:Class="DEPO_DURUMU.ReportRangeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Yeni Rapor - Tarih Aralığı"
+        Height="300" Width="440"
+        Language="tr-TR"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False">
+
+    <DockPanel Margin="14">
+
+        <!-- ALT: DÜĞMELER -->
+        <StackPanel DockPanel.Dock="Bottom"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,14,0,0">
+            <Button Content="Devam"
+                    Width="90" Height="28"
+                    Margin="0,0,6,0"
+                    IsDefault="True"
+                    Click="ContinueButton_Click" />
+            <Button Content="İptal"
+                    Width="90" Height="28"
+                    IsCancel="True" />
+        </StackPanel>
+
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Hangi tarih ve saat aralığındaki işlemler rapora girsin?"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,10" />
+
+        <!-- HIZLI SEÇİMLER -->
+        <StackPanel DockPanel.Dock="Top"
+                    Orientation="Horizontal"
+                    Margin="0,0,0,14">
+            <TextBlock Text="Hızlı seçim:"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0" />
+            <Button Content="Bugün" Width="70" Height="26" Margin="0,0,6,0" Click="TodayButton_Click" />
+            <Button Content="Dün" Width="70" Height="26" Margin="0,0,6,0" Click="YesterdayButton_Click" />
+            <Button Content="Bu hafta" Width="80" Height="26" Click="ThisWeekButton_Click" />
+        </StackPanel>
+
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="80" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Başlangıç" VerticalAlignment="Center" />
+            <DatePicker x:Name="FromDatePicker" Grid.Row="0" Grid.Column="1" Height="26" Margin="0,0,8,0" />
+            <TextBox x:Name="FromTimeBox" Grid.Row="0" Grid.Column="2" Height="26"
+                     VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                     ToolTip="Saat:dakika, örnek 08:30" />
+
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Bitiş" VerticalAlignment="Center" Margin="0,10,0,0" />
+            <DatePicker x:Name="ToDatePicker" Grid.Row="1" Grid.Column="1" Height="26" Margin="0,10,8,0" />
+            <TextBox x:Name="ToTimeBox" Grid.Row="1" Grid.Column="2" Height="26" Margin="0,10,0,0"
+                     VerticalContentAlignment="Center" HorizontalContentAlignment="Center"
+                     ToolTip="Saat:dakika, örnek 17:00" />
+
+            <TextBlock Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2"
+                       Text="Saat 24 saatlik yazılır (örnek 08:30). Bitişteki dakika da dahildir."
+                       Foreground="Gray"
+                       TextWrapping="Wrap"
+                       Margin="0,8,0,0" />
+        </Grid>
+    </DockPanel>
+</Window>

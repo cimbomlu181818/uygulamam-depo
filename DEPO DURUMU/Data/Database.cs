@@ -509,6 +509,34 @@ CREATE TABLE IF NOT EXISTS NoteBooks (
     CreatedAt     TEXT
 );
 
+-- Raporlar: kaydedilen raporlar donmuş kopya olarak durur. Ürün, zimmet ya da tutanak sonradan
+-- değişse veya silinse bile rapor aynı kalır; bu yüzden satırlar yazıldığı gibi (saf metin) saklanır
+-- ve ürünlere/zimmetlere hiçbir ilişki (foreign key) bağlanmaz.
+CREATE TABLE IF NOT EXISTS SavedReports (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    Title       TEXT    NOT NULL,
+    RangeFrom   TEXT    NOT NULL,
+    RangeTo     TEXT    NOT NULL,
+    Operations  TEXT,
+    CreatedAt   TEXT    NOT NULL,
+    CreatedBy   TEXT
+);
+
+CREATE TABLE IF NOT EXISTS SavedReportRows (
+    Id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    ReportId    INTEGER NOT NULL REFERENCES SavedReports(Id) ON DELETE CASCADE,
+    SortOrder   INTEGER NOT NULL DEFAULT 0,
+    Operation   TEXT    NOT NULL,
+    EventAt     TEXT,
+    TypeName    TEXT,
+    Item        TEXT,
+    Person      TEXT,
+    Detail      TEXT
+);
+
+CREATE INDEX IF NOT EXISTS IX_SavedReportRows_Report
+    ON SavedReportRows (ReportId, SortOrder);
+
 ";
     }
 }
