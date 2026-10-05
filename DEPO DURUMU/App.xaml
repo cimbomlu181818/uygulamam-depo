@@ -4,5 +4,406 @@
              xmlns:local="clr-namespace:DEPO_DURUMU">
     <Application.Resources>
 
+        <!-- ============================================================
+             TEMA: YUMUŞAK PASTEL - GÖKYÜZÜ
+             Rengi değiştirmek için sadece aşağıdaki renk bloğunu değiştirmek yeterli.
+             ============================================================ -->
+
+        <!-- RENKLER -->
+        <SolidColorBrush x:Key="ThemeBgBrush" Color="#F2F8FF" />
+        <SolidColorBrush x:Key="ThemePanelBrush" Color="#FFFFFF" />
+        <SolidColorBrush x:Key="ThemeBorderBrush" Color="#D9E6F5" />
+        <SolidColorBrush x:Key="ThemeTextBrush" Color="#1F2E40" />
+        <SolidColorBrush x:Key="ThemeMutedBrush" Color="#647C96" />
+        <SolidColorBrush x:Key="ThemeDisabledTextBrush" Color="#A9B8C9" />
+        <SolidColorBrush x:Key="ThemeAccentBrush" Color="#4C9BE8" />
+        <SolidColorBrush x:Key="ThemeMenuBgBrush" Color="#DEEDFF" />
+        <SolidColorBrush x:Key="ThemeMenuTextBrush" Color="#1E4F87" />
+        <SolidColorBrush x:Key="ThemeSelBgBrush" Color="#D7E8FD" />
+        <SolidColorBrush x:Key="ThemeHoverBrush" Color="#EAF3FF" />
+        <SolidColorBrush x:Key="ThemePressedBrush" Color="#BBD8FA" />
+
+        <!-- Ana sayfadaki istatistik kutularının pastel renkleri (sırayla döner) -->
+        <SolidColorBrush x:Key="StatCard1Brush" Color="#E1EFFE" />
+        <SolidColorBrush x:Key="StatCard2Brush" Color="#E6F7F1" />
+        <SolidColorBrush x:Key="StatCard3Brush" Color="#EDE8FD" />
+
+        <!-- Seçili satır / seçili yazı renkleri (tablo, liste, metin seçimi) -->
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#BBD8FA" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#1E4F87" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#DCE9F8" />
+        <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#1E4F87" />
+
+        <!-- ============================================================
+             MENÜ ŞABLONLARI (üst menüde hap biçimli düğmeler, açılır menüde yuvarlak panel)
+             ============================================================ -->
+
+        <!-- Üst menüde altında alt menü olan öğe (Dosya, Ayarlar) -->
+        <ControlTemplate x:Key="ThemeTopLevelHeaderTemplate" TargetType="MenuItem">
+            <Border x:Name="Bd"
+                    Background="Transparent"
+                    CornerRadius="14"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+                <Grid>
+                    <ContentPresenter ContentSource="Header"
+                                      RecognizesAccessKey="True"
+                                      VerticalAlignment="Center" />
+                    <Popup x:Name="PART_Popup"
+                           Placement="Bottom"
+                           IsOpen="{TemplateBinding IsSubmenuOpen}"
+                           AllowsTransparency="True"
+                           Focusable="False"
+                           PopupAnimation="Fade">
+                        <Border Background="{StaticResource ThemePanelBrush}"
+                                BorderBrush="{StaticResource ThemeBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="4"
+                                Margin="0,4,6,6"
+                                SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True"
+                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </Popup>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeHoverBrush}" />
+                </Trigger>
+                <Trigger Property="IsSubmenuOpen" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeSelBgBrush}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource ThemeDisabledTextBrush}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Üst menüde tek başına tıklanan öğe (Hurda, Zimmetler, + Yeni Excel ...) -->
+        <ControlTemplate x:Key="ThemeTopLevelItemTemplate" TargetType="MenuItem">
+            <Border x:Name="Bd"
+                    Background="Transparent"
+                    CornerRadius="14"
+                    Padding="{TemplateBinding Padding}"
+                    SnapsToDevicePixels="True">
+                <ContentPresenter ContentSource="Header"
+                                  RecognizesAccessKey="True"
+                                  VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeSelBgBrush}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource ThemeDisabledTextBrush}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Açılır menüde tıklanan öğe (Yedek Al..., Sil, Düzenle ...) -->
+        <ControlTemplate x:Key="ThemeSubmenuItemTemplate" TargetType="MenuItem">
+            <Border x:Name="Bd"
+                    Background="Transparent"
+                    CornerRadius="8"
+                    Padding="2"
+                    SnapsToDevicePixels="True">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="24" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ContentPresenter x:Name="Icon"
+                                      Grid.Column="0"
+                                      ContentSource="Icon"
+                                      Margin="4,0"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                    <Path x:Name="CheckMark"
+                          Grid.Column="0"
+                          Visibility="Hidden"
+                          Data="M0,5 L3,9 L9,0"
+                          Stroke="{StaticResource ThemeAccentBrush}"
+                          StrokeThickness="2"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center" />
+                    <ContentPresenter Grid.Column="1"
+                                      ContentSource="Header"
+                                      Margin="6,4"
+                                      RecognizesAccessKey="True"
+                                      VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="2"
+                               Text="{TemplateBinding InputGestureText}"
+                               Margin="16,0,8,0"
+                               Foreground="{StaticResource ThemeMutedBrush}"
+                               VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="CheckMark" Property="Visibility" Value="Visible" />
+                </Trigger>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeSelBgBrush}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource ThemeDisabledTextBrush}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- Açılır menüde altında başka menü olan öğe (Yedekleme, Dışa Aktar ...) -->
+        <ControlTemplate x:Key="ThemeSubmenuHeaderTemplate" TargetType="MenuItem">
+            <Border x:Name="Bd"
+                    Background="Transparent"
+                    CornerRadius="8"
+                    Padding="2"
+                    SnapsToDevicePixels="True">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" MinWidth="24" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ContentPresenter Grid.Column="0"
+                                      ContentSource="Icon"
+                                      Margin="4,0"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                    <ContentPresenter Grid.Column="1"
+                                      ContentSource="Header"
+                                      Margin="6,4"
+                                      RecognizesAccessKey="True"
+                                      VerticalAlignment="Center" />
+                    <Path Grid.Column="2"
+                          Data="M0,0 L4,3.5 L0,7 Z"
+                          Fill="{StaticResource ThemeMutedBrush}"
+                          Margin="16,0,8,0"
+                          VerticalAlignment="Center" />
+                    <Popup x:Name="PART_Popup"
+                           Placement="Right"
+                           HorizontalOffset="-2"
+                           IsOpen="{TemplateBinding IsSubmenuOpen}"
+                           AllowsTransparency="True"
+                           Focusable="False"
+                           PopupAnimation="Fade">
+                        <Border Background="{StaticResource ThemePanelBrush}"
+                                BorderBrush="{StaticResource ThemeBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="4"
+                                Margin="0,0,6,6"
+                                SnapsToDevicePixels="True">
+                            <StackPanel IsItemsHost="True"
+                                        KeyboardNavigation.DirectionalNavigation="Cycle" />
+                        </Border>
+                    </Popup>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsHighlighted" Value="True">
+                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeSelBgBrush}" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Foreground" Value="{StaticResource ThemeDisabledTextBrush}" />
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <!-- ============================================================
+             ORTAK STİLLER (tüm pencerelerde otomatik uygulanır)
+             ============================================================ -->
+
+        <!-- ÜST MENÜ -->
+        <Style TargetType="Menu" BasedOn="{StaticResource {x:Type Menu}}">
+            <Setter Property="Background" Value="{StaticResource ThemeMenuBgBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeMenuTextBrush}" />
+            <Setter Property="Padding" Value="8,6" />
+        </Style>
+
+        <Style TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+            <Setter Property="Foreground" Value="{StaticResource ThemeMenuTextBrush}" />
+            <Setter Property="Template" Value="{StaticResource ThemeSubmenuItemTemplate}" />
+            <Style.Triggers>
+                <Trigger Property="Role" Value="TopLevelHeader">
+                    <Setter Property="Padding" Value="10,4" />
+                    <Setter Property="Template" Value="{StaticResource ThemeTopLevelHeaderTemplate}" />
+                </Trigger>
+                <Trigger Property="Role" Value="TopLevelItem">
+                    <Setter Property="Padding" Value="10,4" />
+                    <Setter Property="Template" Value="{StaticResource ThemeTopLevelItemTemplate}" />
+                </Trigger>
+                <Trigger Property="Role" Value="SubmenuHeader">
+                    <Setter Property="Template" Value="{StaticResource ThemeSubmenuHeaderTemplate}" />
+                </Trigger>
+                <Trigger Property="Role" Value="SubmenuItem">
+                    <Setter Property="Template" Value="{StaticResource ThemeSubmenuItemTemplate}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- SAĞ TIK MENÜSÜ -->
+        <Style TargetType="ContextMenu" BasedOn="{StaticResource {x:Type ContextMenu}}">
+            <Setter Property="Background" Value="{StaticResource ThemePanelBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeMenuTextBrush}" />
+            <Setter Property="Padding" Value="4" />
+        </Style>
+
+        <!-- DÜĞME -->
+        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{StaticResource ThemePanelBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeMenuTextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,3" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeSelBgBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ThemeAccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ThemeAccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemePressedBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeBgBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource ThemeDisabledTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- YAZI KUTUSU -->
+        <Style TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Background" Value="{StaticResource ThemePanelBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeTextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="4,1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Focusable="False"
+                                          HorizontalScrollBarVisibility="Hidden"
+                                          VerticalScrollBarVisibility="Hidden" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ThemeAccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource ThemeAccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeBgBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource ThemeDisabledTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- LİSTE (ürün grupları vb.) -->
+        <Style TargetType="ListBox" BasedOn="{StaticResource {x:Type ListBox}}">
+            <Setter Property="Background" Value="{StaticResource ThemePanelBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeTextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="3"
+                                SnapsToDevicePixels="True">
+                            <ScrollViewer Focusable="False"
+                                          Padding="{TemplateBinding Padding}">
+                                <ItemsPresenter SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                            </ScrollViewer>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                              SnapsToDevicePixels="{TemplateBinding SnapsToDevicePixels}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource ThemeSelBgBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource ThemeMenuTextBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- TABLO (şablona dokunmadan sadece renkler) -->
+        <Style TargetType="DataGrid" BasedOn="{StaticResource {x:Type DataGrid}}">
+            <Setter Property="Background" Value="{StaticResource ThemePanelBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeTextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="VerticalGridLinesBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="RowBackground" Value="{StaticResource ThemePanelBrush}" />
+        </Style>
+
+        <Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}">
+            <Setter Property="Background" Value="{StaticResource ThemeMenuBgBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource ThemeMenuTextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ThemeBorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,1,1" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="8,5" />
+        </Style>
+
     </Application.Resources>
 </Application>

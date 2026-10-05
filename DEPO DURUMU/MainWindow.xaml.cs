@@ -53,9 +53,23 @@ namespace DEPO_DURUMU
         private bool _statisticsEditMode;
 
         // Kutu çerçeveleri için renkler: normal, düzenleme modu aktif, basılı tutulup sürüklenen kutu.
-        private static readonly Brush StatisticCardNormalBrush = Brushes.Gray;
-        private static readonly Brush StatisticCardEditModeBrush = Brushes.SteelBlue;
+        // Normal ve düzenleme rengi temadan (App.xaml) gelir; tema bulunamazsa eski renkler kullanılır.
+        private static readonly Brush StatisticCardNormalBrush = ThemeBrush("ThemeBorderBrush", Brushes.Gray);
+        private static readonly Brush StatisticCardEditModeBrush = ThemeBrush("ThemeAccentBrush", Brushes.SteelBlue);
         private static readonly Brush StatisticCardHeldBrush = Brushes.OrangeRed;
+
+        /// <summary>App.xaml'daki bir tema fırçasını adıyla bulur; bulunamazsa verilen yedek fırçayı döndürür.</summary>
+        private static Brush ThemeBrush(string key, Brush fallback)
+        {
+            var found = Application.Current == null ? null : Application.Current.TryFindResource(key) as Brush;
+            return found ?? fallback;
+        }
+
+        /// <summary>İstatistik kutularının dolgu rengi: temadaki üç pastel renk sırayla döner.</summary>
+        private static Brush StatisticCardBackground(int index)
+        {
+            return ThemeBrush("StatCard" + ((index % 3) + 1) + "Brush", Brushes.White);
+        }
 
         public MainWindow()
         {
@@ -234,6 +248,8 @@ namespace DEPO_DURUMU
             StatisticsPanel.Children.Clear();
             _homeStatisticCards = HomeStatisticsRepository.GetAll();
 
+            var cardIndex = 0;
+
             foreach (var card in _homeStatisticCards)
             {
                 var panel = new StackPanel { Orientation = Orientation.Horizontal };
@@ -248,10 +264,10 @@ namespace DEPO_DURUMU
                 {
                     BorderBrush = _statisticsEditMode ? StatisticCardEditModeBrush : StatisticCardNormalBrush,
                     BorderThickness = _statisticsEditMode ? new Thickness(2) : new Thickness(1),
-                    CornerRadius = new CornerRadius(4),
-                    Padding = new Thickness(10, 6, 10, 6),
+                    CornerRadius = new CornerRadius(14),
+                    Padding = new Thickness(12, 8, 12, 8),
                     Margin = new Thickness(0, 0, 10, 10),
-                    Background = Brushes.White,
+                    Background = StatisticCardBackground(cardIndex++),
                     AllowDrop = true,
                     Tag = card,
                     Child = panel,
@@ -280,8 +296,8 @@ namespace DEPO_DURUMU
             {
                 BorderBrush = StatisticCardNormalBrush,
                 BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(10, 6, 10, 6),
+                CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(12, 8, 12, 8),
                 Margin = new Thickness(0, 0, 10, 10),
                 Background = Brushes.White,
                 Cursor = Cursors.Hand,

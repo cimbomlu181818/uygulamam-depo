@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Threading;
 using DEPO_DURUMU.Data;
 
@@ -32,6 +33,9 @@ namespace DEPO_DURUMU
         protected override void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
+
+            // Tema: açılan her pencerenin arka plan ve yazı rengi, pencerede ayrıca belirtilmemişse temadan (App.xaml) alınır.
+            EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent, new RoutedEventHandler(ApplyThemeToWindow));
 
             // Program zaten açıksa ikincisi açılmasın; iki pencere aynı veritabanına yazınca "kilitli" hatası çıkar.
             // "Local\" ile bu Windows oturumuna özel olur (başka bir kullanıcı kendi programını açabilir).
@@ -115,6 +119,29 @@ namespace DEPO_DURUMU
                 mainWindow.Dispatcher.BeginInvoke(
                     new Action(mainWindow.StartExcelImportFromWelcome),
                     DispatcherPriority.ContextIdle);
+            }
+        }
+
+        /// <summary>
+        /// Pencerenin arka plan ve yazı rengini temadan verir. XAML'de ya da kodda elle renk verilmiş pencereye dokunmaz.
+        /// (Window için yazılan örtük stil, MainWindow gibi türetilmiş pencerelere uygulanmadığı için bu yol kullanılır.)
+        /// </summary>
+        private static void ApplyThemeToWindow(object sender, RoutedEventArgs e)
+        {
+            var window = sender as Window;
+            if (window == null)
+            {
+                return;
+            }
+
+            if (window.ReadLocalValue(Control.BackgroundProperty) == DependencyProperty.UnsetValue)
+            {
+                window.SetResourceReference(Control.BackgroundProperty, "ThemeBgBrush");
+            }
+
+            if (window.ReadLocalValue(Control.ForegroundProperty) == DependencyProperty.UnsetValue)
+            {
+                window.SetResourceReference(Control.ForegroundProperty, "ThemeTextBrush");
             }
         }
 
