@@ -101,54 +101,73 @@ namespace DEPO_DURUMU.Data
 
             using (var connection = Database.OpenConnection())
             {
-                int scrapProductId;
-
-                using (var insertCommand = connection.CreateCommand())
+                // Hurda kopyası ve depodan çıkarma tek işlem olarak yapılır:
+                // elektrik kesilirse ya hepsi tamamlanır ya da hiçbiri (ürün ikisinde de görünmez).
+                using (var transaction = connection.BeginTransaction())
                 {
-                    insertCommand.CommandText =
-                        "INSERT INTO ScrapProducts (TypeId, TypeName, OriginalSortOrder, Quantity, ScrappedAt) " +
-                        "VALUES (@typeId, @typeName, @order, @quantity, @scrappedAt); SELECT last_insert_rowid();";
-                    insertCommand.Parameters.Add(new SQLiteParameter("@typeId", type.Id));
-                    insertCommand.Parameters.Add(new SQLiteParameter("@typeName", type.Name));
-                    insertCommand.Parameters.Add(new SQLiteParameter("@order", rank));
-                    insertCommand.Parameters.Add(new SQLiteParameter("@quantity", moveQuantity));
-                    insertCommand.Parameters.Add(new SQLiteParameter("@scrappedAt",
-                        DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
+                    int scrapProductId;
 
-                    scrapProductId = Convert.ToInt32(insertCommand.ExecuteScalar());
-                    scrapProductIdForLog = scrapProductId;
-                }
-
-                foreach (var property in properties)
-                {
-                    var value = values.ContainsKey(property.Id) ? values[property.Id] : "";
-
-                    using (var valueCommand = connection.CreateCommand())
+                    using (var insertCommand = connection.CreateCommand())
                     {
-                        valueCommand.CommandText =
-                            "INSERT INTO ScrapProductValues " +
-                            "(ScrapProductId, PropertyId, PropertyName, DataType, IsSerialNumber, TextValue) " +
-                            "VALUES (@scrapProductId, @propertyId, @propertyName, @dataType, @isSerial, @value);";
-                        valueCommand.Parameters.Add(new SQLiteParameter("@scrapProductId", scrapProductId));
-                        valueCommand.Parameters.Add(new SQLiteParameter("@propertyId", property.Id));
-                        valueCommand.Parameters.Add(new SQLiteParameter("@propertyName", property.Name));
-                        valueCommand.Parameters.Add(new SQLiteParameter("@dataType", property.DataType));
-                        valueCommand.Parameters.Add(new SQLiteParameter("@isSerial", property.IsSerialNumber ? 1 : 0));
-                        valueCommand.Parameters.Add(new SQLiteParameter("@value", value));
-                        valueCommand.ExecuteNonQuery();
-                    }
-                }
-            }
+                        insertCommand.Transaction = transaction;
+                        insertCommand.CommandText =
+                            "INSERT INTO ScrapProducts (TypeId, TypeName, OriginalSortOrder, Quantity, ScrappedAt) " +
+                            "VALUES (@typeId, @typeName, @order, @quantity, @scrappedAt); SELECT last_insert_rowid();";
+                        insertCommand.Parameters.Add(new SQLiteParameter("@typeId", type.Id));
+                        insertCommand.Parameters.Add(new SQLiteParameter("@typeName", type.Name));
+                        insertCommand.Parameters.Add(new SQLiteParameter("@order", rank));
+                        insertCommand.Parameters.Add(new SQLiteParameter("@quantity", moveQuantity));
+                        insertCommand.Parameters.Add(new SQLiteParameter("@scrappedAt",
+                            DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")));
 
-            // Donmuş kopya güvenle yazıldı. Tamamı taşındıysa gerçek depodan tamamen kaldır,
-            // kısmen taşındıysa ürün depoda kalır, sadece adedi düşer.
-            if (isPartial)
-            {
-                ProductRepository.SetQuantity(productId, currentQuantity - moveQuantity);
-            }
-            else
-            {
-                ProductRepository.Delete(productId);
+                        scrapProductId = Convert.ToInt32(insertCommand.ExecuteScalar());
+                        scrapProductIdForLog = scrapProductId;
+                    }
+
+                    foreach (var property in properties)
+                    {
+                        var value = values.ContainsKey(property.Id) ? values[property.Id] : "";
+
+                        using (var valueCommand = connection.CreateCommand())
+                        {
+                            valueCommand.Transaction = transaction;
+                            valueCommand.CommandText =
+                                "INSERT INTO ScrapProductValues " +
+                                "(ScrapProductId, PropertyId, PropertyName, DataType, IsSerialNumber, TextValue) " +
+                                "VALUES (@scrapProductId, @propertyId, @propertyName, @dataType, @isSerial, @value);";
+                            valueCommand.Parameters.Add(new SQLiteParameter("@scrapProductId", scrapProductId));
+                            valueCommand.Parameters.Add(new SQLiteParameter("@propertyId", property.Id));
+                            valueCommand.Parameters.Add(new SQLiteParameter("@propertyName", property.Name));
+                            valueCommand.Parameters.Add(new SQLiteParameter("@dataType", property.DataType));
+                            valueCommand.Parameters.Add(new SQLiteParameter("@isSerial", property.IsSerialNumber ? 1 : 0));
+                            valueCommand.Parameters.Add(new SQLiteParameter("@value", value));
+                            valueCommand.ExecuteNonQuery();
+                        }
+                    }
+
+                    // Kısmen taşındıysa ürün depoda kalır, sadece adedi düşer; tamamı taşındıysa depodan tamamen kaldırılır.
+                    using (var stockCommand = connection.CreateCommand())
+                    {
+                        stockCommand.Transaction = transaction;
+
+                        if (isPartial)
+                        {
+                            stockCommand.CommandText = "UPDATE Products SET Quantity = @quantity WHERE Id = @id;";
+                            stockCommand.Parameters.Add(new SQLiteParameter("@quantity", currentQuantity - moveQuantity));
+                        }
+                        else
+                        {
+                            stockCommand.CommandText =
+                                "DELETE FROM ProductValues WHERE ProductId = @id; " +
+                                "DELETE FROM Products WHERE Id = @id;";
+                        }
+
+                        stockCommand.Parameters.Add(new SQLiteParameter("@id", productId));
+                        stockCommand.ExecuteNonQuery();
+                    }
+
+                    transaction.Commit();
+                }
             }
 
             LogRepository.Add(
