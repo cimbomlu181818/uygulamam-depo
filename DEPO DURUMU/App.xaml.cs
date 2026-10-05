@@ -101,6 +101,28 @@ namespace DEPO_DURUMU
                         continue;
                     }
 
+                    // Hiçbir seçenek seçilmeden pencere kapatıldıysa (X ya da Alt+F4) içeri alınmaz.
+                    // Program çıkışta işaret dosyası yazmaz, bu yüzden tekrar açılınca seçim ekranı yine gelir.
+                    if (welcome.Choice == WelcomeChoice.None)
+                    {
+                        var answer = MessageBox.Show(
+                            "Devam etmek için bir seçenek seçmelisin.\n\n" +
+                            "Programdan çıkmak istiyor musun?\n" +
+                            "(Evet dersen program kapanır, tekrar açtığında bu seçenekler yine karşına gelir. " +
+                            "Hayır dersen seçim ekranına dönersin.)",
+                            AppTitle, MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                        if (answer == MessageBoxResult.Yes)
+                        {
+                            // Henüz hiçbir şey seçilmedi: kapanışta boş veritabanının yedeği alınmasın.
+                            _databaseReady = false;
+                            Shutdown();
+                            return;
+                        }
+
+                        continue;
+                    }
+
                     choice = welcome.Choice;
                     break;
                 }

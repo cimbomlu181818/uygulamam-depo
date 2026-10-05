@@ -5,7 +5,7 @@ namespace DEPO_DURUMU
     /// <summary>Karşılama penceresinde kullanıcının seçtiği başlangıç yolu.</summary>
     public enum WelcomeChoice
     {
-        /// <summary>Seçim yapılmadan pencere kapatıldı: boş depoyla başlanır.</summary>
+        /// <summary>Seçim yapılmadan pencere kapatıldı: program uyarı verir, seçim yapılmadan içeri alınmaz.</summary>
         None,
 
         /// <summary>"Yeni bir depoya başlıyorum": doğrudan ana ekran.</summary>
