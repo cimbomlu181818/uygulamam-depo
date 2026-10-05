@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Diagnostics;
+using System.IO;
+using System.Reflection;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
@@ -16,6 +19,15 @@ namespace DEPO_DURUMU
         /// <summary>Programın aynı anda iki kez açılmasını engelleyen kilit. Sadece ilk açılan program tutar.</summary>
         private Mutex _singleInstanceMutex;
         private bool _ownsMutex;
+
+        /// <summary>
+        /// Karşılama penceresinin bir kez gösterildiğini belirten küçük dosya. Veritabanının içinde değil,
+        /// Belgelerim\Depo Takip klasöründe durur; böylece yedekten geri yüklenince silinmez.
+        /// </summary>
+        private static string FirstRunMarkerPath
+        {
+            get { return Path.Combine(Database.RootFolder, "ilk_acilis_tamam.txt"); }
+        }
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -61,9 +73,162 @@ namespace DEPO_DURUMU
                 return;
             }
 
+            // İlk açılışta kullanıcıya nasıl başlamak istediği sorulur.
+            var choice = WelcomeChoice.None;
+
+            if (ShouldShowWelcome())
+            {
+                // Karşılama penceresi kapanınca program kendiliğinden kapanmasın.
+                ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
+                while (true)
+                {
+                    var welcome = new WelcomeWindow();
+                    welcome.ShowDialog();
+
+                    if (welcome.Choice == WelcomeChoice.RestoreBackup)
+                    {
+                        if (RestoreFromBackupAndRestart())
+                        {
+                            return;
+                        }
+
+                        // Vazgeçildi ya da geri yükleme olmadı: karşılama penceresine geri dönülür.
+                        continue;
+                    }
+
+                    choice = welcome.Choice;
+                    break;
+                }
+
+                MarkFirstRunDone();
+                ShutdownMode = ShutdownMode.OnLastWindowClose;
+            }
+
             var mainWindow = new MainWindow();
             MainWindow = mainWindow;
             mainWindow.Show();
+
+            // "Excel dosyam var" seçildiyse, ana ekran görününce içe aktarma başlar.
+            if (choice == WelcomeChoice.ImportExcel)
+            {
+                mainWindow.Dispatcher.BeginInvoke(
+                    new Action(mainWindow.StartExcelImportFromWelcome),
+                    DispatcherPriority.ContextIdle);
+            }
+        }
+
+        /// <summary>
+        /// Karşılama penceresi yalnızca ilk açılışta gösterilir: işaret dosyası yoksa ve veritabanında
+        /// henüz hiç ürün cinsi yoksa. Zaten kullanılmış bir veritabanı varsa pencere çıkmaz.
+        /// </summary>
+        private static bool ShouldShowWelcome()
+        {
+            try
+            {
+                if (File.Exists(FirstRunMarkerPath))
+                {
+                    return false;
+                }
+
+                if (ProductTypeRepository.GetAll().Count > 0)
+                {
+                    MarkFirstRunDone();
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception)
+            {
+                // Kontrol edilemiyorsa kullanıcıyı rahatsız etmeden normal açılır.
+                return false;
+            }
+        }
+
+        /// <summary>Karşılama penceresinin bir daha gösterilmemesi için işaret dosyasını yazar.</summary>
+        private static void MarkFirstRunDone()
+        {
+            try
+            {
+                Directory.CreateDirectory(Database.RootFolder);
+                File.WriteAllText(FirstRunMarkerPath, "Depo Takip ilk açılış penceresi gösterildi.");
+            }
+            catch (Exception)
+            {
+                // İşaret yazılamazsa program yine de açılır.
+            }
+        }
+
+        /// <summary>
+        /// "Yedek dosyam var" seçimi: yedek dosyası seçtirilir, geri yüklenir ve program kendiliğinden yeniden açılır.
+        /// Başarılıysa true döner (program kapanıyordur). Vazgeçilirse ya da hata olursa false döner.
+        /// </summary>
+        private bool RestoreFromBackupAndRestart()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Yedek Dosyasını Seç",
+                Filter = "Depo Takip yedek dosyası (*.db)|*.db"
+            };
+
+            if (dialog.ShowDialog() != true)
+            {
+                return false;
+            }
+
+            try
+            {
+                BackupService.RestoreBackup(dialog.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Geri yükleme başarısız: " + ex.Message, AppTitle,
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return false;
+            }
+
+            MarkFirstRunDone();
+
+            MessageBox.Show("Yedek geri yüklendi. Program şimdi yeniden açılacak.", AppTitle,
+                MessageBoxButton.OK, MessageBoxImage.Information);
+
+            // Geri yüklenen veritabanının üzerine kapanışta yedek alınmasın;
+            // yeni açılan program "zaten açık" demesin diye kilit de bırakılır.
+            _databaseReady = false;
+            ReleaseSingleInstanceLock();
+
+            try
+            {
+                Process.Start(Assembly.GetExecutingAssembly().Location);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Program kendiliğinden açılamadı. Programı elle yeniden aç.\n\nNeden: " + ex.Message,
+                    AppTitle, MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+
+            Shutdown();
+            return true;
+        }
+
+        /// <summary>"Program zaten açık" kilidini bırakır. Birden fazla çağrılsa da sorun çıkmaz.</summary>
+        private void ReleaseSingleInstanceLock()
+        {
+            if (_singleInstanceMutex == null)
+            {
+                return;
+            }
+
+            if (_ownsMutex)
+            {
+                _singleInstanceMutex.ReleaseMutex();
+                _ownsMutex = false;
+            }
+
+            _singleInstanceMutex.Dispose();
+            _singleInstanceMutex = null;
         }
 
         /// <summary>Yakalanmamış bir hata olursa mesaj gösterilir ve log defterine yazılır; program kapanmaz.</summary>
@@ -108,15 +273,7 @@ namespace DEPO_DURUMU
                 }
             }
 
-            if (_singleInstanceMutex != null)
-            {
-                if (_ownsMutex)
-                {
-                    _singleInstanceMutex.ReleaseMutex();
-                }
-
-                _singleInstanceMutex.Dispose();
-            }
+            ReleaseSingleInstanceLock();
 
             base.OnExit(e);
         }

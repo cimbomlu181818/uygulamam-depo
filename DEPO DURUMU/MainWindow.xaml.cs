@@ -2647,6 +2647,15 @@ namespace DEPO_DURUMU
             }
         }
 
+        /// <summary>
+        /// İlk açılış penceresinde "Excel dosyam var" seçilince, ana ekran göründükten sonra
+        /// Dosya menüsündeki "Depoya (Excel/CSV)" içe aktarmasını doğrudan başlatır.
+        /// </summary>
+        public void StartExcelImportFromWelcome()
+        {
+            ImportAllTypesMenu_Click(this, new RoutedEventArgs());
+        }
+
         private void ScrapMenu_Click(object sender, RoutedEventArgs e)
         {
             var window = new ScrapWindow { Owner = this };

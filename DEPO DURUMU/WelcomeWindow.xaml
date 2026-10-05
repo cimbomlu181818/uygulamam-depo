@@ -1,0 +1,70 @@
+﻿<Window x:Class="DEPO_DURUMU.WelcomeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Depo Takip"
+        Width="520"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize">
+
+    <StackPanel Margin="25">
+
+        <TextBlock Text="Depo Takip'e hoş geldin"
+                   FontSize="22"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,6" />
+
+        <TextBlock Text="Nasıl başlamak istersin? Bunu sadece bir kez soruyoruz."
+                   Foreground="Gray"
+                   TextWrapping="Wrap"
+                   Margin="0,0,0,20" />
+
+        <!-- 1: Yeni başlıyorum -->
+        <Button Click="FreshButton_Click"
+                Padding="14,10"
+                Margin="0,0,0,12"
+                HorizontalContentAlignment="Left">
+            <StackPanel>
+                <TextBlock Text="Yeni bir depoya başlıyorum"
+                           FontSize="15"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Boş bir depoyla başlarım, ürünleri kendim eklerim."
+                           Foreground="Gray"
+                           TextWrapping="Wrap"
+                           Margin="0,3,0,0" />
+            </StackPanel>
+        </Button>
+
+        <!-- 2: Excel dosyam var -->
+        <Button Click="ExcelButton_Click"
+                Padding="14,10"
+                Margin="0,0,0,12"
+                HorizontalContentAlignment="Left">
+            <StackPanel>
+                <TextBlock Text="Elimde depomla ilgili bir Excel dosyası var"
+                           FontSize="15"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Excel'deki ürünleri programa aktarırım."
+                           Foreground="Gray"
+                           TextWrapping="Wrap"
+                           Margin="0,3,0,0" />
+            </StackPanel>
+        </Button>
+
+        <!-- 3: Yedek dosyam var -->
+        <Button Click="RestoreButton_Click"
+                Padding="14,10"
+                HorizontalContentAlignment="Left">
+            <StackPanel>
+                <TextBlock Text="Bu programı daha önce kullandım, yedek dosyam var"
+                           FontSize="15"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Yedek dosyamı seçip eski verilerimi geri yüklerim."
+                           Foreground="Gray"
+                           TextWrapping="Wrap"
+                           Margin="0,3,0,0" />
+            </StackPanel>
+        </Button>
+
+    </StackPanel>
+</Window>
