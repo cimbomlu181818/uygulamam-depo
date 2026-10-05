@@ -114,6 +114,11 @@
 
                 <!-- ORTA BÖLÜM: istatistik kutuları + son işlemler -->
                 <DockPanel Grid.Column="1" Margin="0,10,10,10">
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="İstatistikler"
+                               FontWeight="SemiBold"
+                               Margin="0,0,0,5" />
+
                     <WrapPanel x:Name="StatisticsPanel" DockPanel.Dock="Top" />
 
                     <TextBlock DockPanel.Dock="Top"
@@ -128,6 +133,7 @@
                                Visibility="Collapsed" />
 
                     <DataGrid x:Name="RecentLogGrid"
+                              VerticalAlignment="Top"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               CanUserAddRows="False"

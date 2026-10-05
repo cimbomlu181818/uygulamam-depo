@@ -287,9 +287,8 @@ namespace DEPO_DURUMU
                 Cursor = Cursors.Hand,
                 Child = new TextBlock
                 {
-                    Text = "+",
-                    FontWeight = FontWeights.Bold,
-                    FontSize = 16,
+                    Text = "+ İstatistik Ekle",
+                    FontWeight = FontWeights.SemiBold,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 }
