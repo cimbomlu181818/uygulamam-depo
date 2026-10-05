@@ -25,6 +25,15 @@ namespace DEPO_DURUMU.Data
         }
     }
 
+    /// <summary>Ana sayfada logonun altında gösterilen sabit genel durum sayıları.</summary>
+    public class HomeSummary
+    {
+        public int Total { get; set; }
+        public int Assigned { get; set; }
+        public int Depot { get; set; }
+        public int Scrap { get; set; }
+    }
+
     /// <summary>
     /// Ana sayfadaki istatistik kutusu seçimlerini kalıcı olarak saklar ve sayılarını hesaplar.
     /// Bir kutunun baktığı özellik artık o ürün cinsine atanmış değilse (Özellik Ata'dan
@@ -87,6 +96,41 @@ namespace DEPO_DURUMU.Data
             }
 
             return list;
+        }
+
+        /// <summary>
+        /// Genel durum: Depoda = hurdaya gitmemiş tüm ürün adedi - şu an zimmette olan adet,
+        /// Zimmetli = iade edilmemiş zimmet adedi, Hurda = hurdadaki adet,
+        /// Toplam = Depoda + Zimmetli + Hurda.
+        /// </summary>
+        public static HomeSummary GetSummary()
+        {
+            var summary = new HomeSummary();
+
+            using (var connection = Database.OpenConnection())
+            {
+                var stock = ScalarInt(connection, "SELECT COALESCE(SUM(Quantity), 0) FROM Products;");
+
+                summary.Assigned = ScalarInt(connection,
+                    "SELECT COALESCE(SUM(a.Quantity), 0) FROM Assignments a " +
+                    "JOIN Products p ON p.Id = a.ProductId WHERE a.IsReturned = 0;");
+
+                summary.Scrap = ScalarInt(connection, "SELECT COALESCE(SUM(Quantity), 0) FROM ScrapProducts;");
+
+                summary.Depot = Math.Max(0, stock - summary.Assigned);
+                summary.Total = summary.Depot + summary.Assigned + summary.Scrap;
+            }
+
+            return summary;
+        }
+
+        private static int ScalarInt(SQLiteConnection connection, string sql)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = sql;
+                return Convert.ToInt32(command.ExecuteScalar());
+            }
         }
 
         /// <summary>

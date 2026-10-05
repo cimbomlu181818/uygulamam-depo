@@ -245,6 +245,8 @@ namespace DEPO_DURUMU
         /// </summary>
         private void LoadHomeStatistics()
         {
+            RefreshSummaryStatistics();
+
             StatisticsPanel.Children.Clear();
             _homeStatisticCards = HomeStatisticsRepository.GetAll();
 
@@ -287,6 +289,17 @@ namespace DEPO_DURUMU
             {
                 StatisticsPanel.Children.Add(BuildAddStatisticCard());
             }
+        }
+
+        /// <summary>Logonun altındaki sabit kutuları (Toplam ürün, Zimmetli, Depoda, Hurda) günceller.</summary>
+        private void RefreshSummaryStatistics()
+        {
+            var summary = HomeStatisticsRepository.GetSummary();
+
+            SummaryTotalText.Text = summary.Total.ToString();
+            SummaryAssignedText.Text = summary.Assigned.ToString();
+            SummaryDepotText.Text = summary.Depot.ToString();
+            SummaryScrapText.Text = summary.Scrap.ToString();
         }
 
         /// <summary>Son kutunun yanına eklenen, tıklanınca yeni istatistik ekleyen "+" kutusu.</summary>

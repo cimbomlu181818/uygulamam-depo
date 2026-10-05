@@ -10,10 +10,6 @@
 
         <!-- ÜST MENÜ (her pencerede görünecek) -->
         <Menu x:Name="MainMenu" DockPanel.Dock="Top" Padding="4" Loaded="MainMenu_Loaded">
-            <MenuItem Header="🏠"
-                      FontSize="15"
-                      ToolTip="Ana Sayfa"
-                      Click="HomeMenu_Click" />
             <MenuItem Header="Dosya">
                 <MenuItem x:Name="UndoMenuItem"
                           Header="Geri Al"
@@ -70,11 +66,14 @@
                 BorderThickness="0,0,0,1"
                 Padding="14,6">
             <StackPanel Orientation="Horizontal">
-                <Image Source="Images/logo.png"
-                       Width="44"
-                       Height="44"
-                       RenderOptions.BitmapScalingMode="HighQuality"
-                       VerticalAlignment="Center" />
+                <Button Content="🏠"
+                        FontSize="22"
+                        Width="44"
+                        Height="44"
+                        ToolTip="Ana Sayfa"
+                        Cursor="Hand"
+                        VerticalAlignment="Center"
+                        Click="HomeMenu_Click" />
                 <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="Depo Takip"
                                FontSize="16"
@@ -93,8 +92,9 @@
             <!-- SAYFA 1: ANA SAYFA -->
             <Grid x:Name="HomePage">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="250" />
+                    <ColumnDefinition Width="230" />
                     <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="220" />
                 </Grid.ColumnDefinitions>
 
                 <!-- SOL BÖLÜM: ürün cinsleri -->
@@ -136,7 +136,7 @@
                              MouseDoubleClick="ProductTypeList_MouseDoubleClick" />
                 </DockPanel>
 
-                <!-- ORTA BÖLÜM: istatistik kutuları + son işlemler -->
+                <!-- ORTA BÖLÜM: istatistik kutuları + son işlemler (eski yerinde) -->
                 <DockPanel Grid.Column="1" Margin="0,10,10,10">
                     <TextBlock DockPanel.Dock="Top"
                                Text="İstatistikler"
@@ -157,21 +157,108 @@
                                Visibility="Collapsed" />
 
                     <DataGrid x:Name="RecentLogGrid"
-                              VerticalAlignment="Top"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               CanUserAddRows="False"
                               CanUserSortColumns="False"
-                              HeadersVisibility="Column"
-                              MaxHeight="260">
+                              HeadersVisibility="Column">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Zaman" Binding="{Binding CreatedAt, StringFormat='dd.MM.yyyy HH:mm'}" Width="130" />
-                            <DataGridTextColumn Header="Ürün tipi" Binding="{Binding TypeName}" Width="120" />
-                            <DataGridTextColumn Header="Ürün" Binding="{Binding Description}" Width="*" />
-                            <DataGridTextColumn Header="Son işlem" Binding="{Binding ActionType}" Width="140" />
-                            <DataGridTextColumn Header="Kullanıcı" Binding="{Binding UserName}" Width="100" />
+                            <DataGridTextColumn Header="Zaman" Binding="{Binding CreatedAt, StringFormat='dd.MM.yyyy HH:mm'}" Width="115" />
+                            <DataGridTextColumn Header="Ürün tipi" Binding="{Binding TypeName}" Width="95" />
+                            <DataGridTextColumn Header="Ürün" Binding="{Binding Description}" Width="*" MinWidth="110" />
+                            <DataGridTextColumn Header="Son işlem" Binding="{Binding ActionType}" Width="95" />
+                            <DataGridTextColumn Header="Kullanıcı" Binding="{Binding UserName}" Width="80" />
                         </DataGrid.Columns>
                     </DataGrid>
+                </DockPanel>
+
+                <!-- SAĞ BÖLÜM: üstte logo, altında sabit genel durum kutuları -->
+                <DockPanel Grid.Column="2" Margin="0,10,10,10">
+                    <Image DockPanel.Dock="Top"
+                           Source="Images/logo.png"
+                           Width="150"
+                           Height="150"
+                           Stretch="Uniform"
+                           RenderOptions.BitmapScalingMode="HighQuality"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,12" />
+
+                    <Border DockPanel.Dock="Top"
+                            Background="{StaticResource ThemePanelBrush}"
+                            BorderBrush="{StaticResource ThemeBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="12,8"
+                            Margin="0,0,0,8">
+                        <Grid>
+                            <TextBlock Text="Toplam ürün"
+                                       Foreground="{StaticResource ThemeMutedBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="SummaryTotalText"
+                                       Text="0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <Border DockPanel.Dock="Top"
+                            Background="{StaticResource ThemePanelBrush}"
+                            BorderBrush="{StaticResource ThemeBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="12,8"
+                            Margin="0,0,0,8">
+                        <Grid>
+                            <TextBlock Text="Zimmetli"
+                                       Foreground="{StaticResource ThemeMutedBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="SummaryAssignedText"
+                                       Text="0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <Border DockPanel.Dock="Top"
+                            Background="{StaticResource ThemePanelBrush}"
+                            BorderBrush="{StaticResource ThemeBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="12,8"
+                            Margin="0,0,0,8">
+                        <Grid>
+                            <TextBlock Text="Depoda"
+                                       Foreground="{StaticResource ThemeMutedBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="SummaryDepotText"
+                                       Text="0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <Border DockPanel.Dock="Top"
+                            Background="{StaticResource ThemePanelBrush}"
+                            BorderBrush="{StaticResource ThemeBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            Padding="12,8"
+                            Margin="0,0,0,8">
+                        <Grid>
+                            <TextBlock Text="Hurda"
+                                       Foreground="{StaticResource ThemeMutedBrush}"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="SummaryScrapText"
+                                       Text="0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Right"
+                                       VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
                 </DockPanel>
             </Grid>
 
